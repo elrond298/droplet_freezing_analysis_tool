@@ -3,3 +3,4 @@ pandas
 matplotlib
 PyQt5
 opencv-python
+pickle
