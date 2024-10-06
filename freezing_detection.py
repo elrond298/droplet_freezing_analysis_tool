@@ -21,26 +21,58 @@ def load_temperature_timeseries(temperature_recordings):
         timestamp: time
         temperature: average temperature
     """
-    df = pd.read_excel(temperature_recordings)
-    def to_timestamp(lst):
-        bias = 0
-        for i in range(len(lst)):
-            lst[i] = datetime.datetime.fromisoformat(lst[i])
-            lst[i] = datetime.datetime.timestamp(lst[i]) - bias
-        return lst
+    # #+begin load temperature data from W613 thermal sensors:
+    # df = pd.read_excel(temperature_recordings)
+    # def to_timestamp(lst):
+    #     bias = 0
+    #     for i in range(len(lst)):
+    #         lst[i] = datetime.datetime.fromisoformat(lst[i])
+    #         lst[i] = datetime.datetime.timestamp(lst[i]) - bias
+    #     return lst
 
-    df["时间"] = to_timestamp(df["时间"].to_string(index=False).split("\n"))
+    # df["时间"] = to_timestamp(df["时间"].to_string(index=False).split("\n"))
 
-    temperature_recordings = {}
-    temperature_recordings["timestamp"] = df["时间"].to_numpy()
-    if df["通道01(℃)"].min() < 0:
-        temperature_recordings["temperature"] = (df["通道01(℃)"] + df["通道02(℃)"] + df["通道03(℃)"] + df["通道04(℃)"]) / 4
-    else:
-        temperature_recordings["temperature"] = (df["通道05(℃)"] + df["通道02(℃)"] + df["通道03(℃)"] + df["通道06(℃)"]) / 4
-    
-    temperature_recordings["temperature"] = temperature_recordings["temperature"].to_numpy()
-    return temperature_recordings # a 1D array, contains the temperature recording
+    # temperature_recordings = {}
+    # temperature_recordings["timestamp"] = df["时间"].to_numpy()
+    # if df["通道01(℃)"].min() < 0:
+    #     temperature_recordings["temperature"] = (df["通道01(℃)"] + df["通道02(℃)"] + df["通道03(℃)"] + df["通道04(℃)"]) / 4
+    # else:
+    #     temperature_recordings["temperature"] = (df["通道05(℃)"] + df["通道02(℃)"] + df["通道03(℃)"] + df["通道06(℃)"]) / 4
 
+    # temperature_recordings["temperature"] = temperature_recordings["temperature"].to_numpy()
+    # return temperature_recordings # a 1D array, contains the temperature recording
+    # #+end
+
+    #+begin load temperature from atmosphere experiment lab
+    df = pd.read_csv(file_path, skiprows=[0,2,3])  # some lines are additional information, which should be discarded
+    df["TIMESTAMP"] = pd.to_datetime(df["TIMESTAMP"])
+    # discard data before certain timestamp specified
+    TEMPERATURE_CUTOFF_TIMESTAMP = "2024-10-01 00:00:00"
+    cutoff_timestamp = pd.to_datetime(TEMPERATURE_CUTOFF_TIMESTAMP)
+    df = df[df["TIMESTAMP"] >= cutoff_timestamp]
+
+    new_df = pd.DataFrame()
+    new_df["timestamp"] = df["TIMESTAMP"]
+    new_df["RT_C_Avg(1)"] = df["RT_C_Avg(1)"]
+    new_df["RT_C_Avg(2)"] = df["RT_C_Avg(2)"]
+    new_df["RT_C_Avg(3)"] = df["RT_C_Avg(3)"]
+    new_df["RT_C_Avg(4)"] = df["RT_C_Avg(4)"]
+    new_df["RT_C_Avg(5)"] = df["RT_C_Avg(5)"]
+    new_df["RT_C_Avg(6)"] = df["RT_C_Avg(6)"]
+    new_df["RT_C_Avg(7)"] = df["RT_C_Avg(7)"]
+    new_df["RT_C_Avg(8)"] = df["RT_C_Avg(8)"]
+    # ensure the average temperature as output
+    new_df["temperature"] = (df["RT_C_Avg(1)"] +
+                          df["RT_C_Avg(2)"] +
+                          df["RT_C_Avg(3)"] +
+                          df["RT_C_Avg(4)"] +
+                          df["RT_C_Avg(5)"] +
+                          df["RT_C_Avg(6)"] +
+                          df["RT_C_Avg(7)"] +
+                          df["RT_C_Avg(8)"]
+                          ) / 8
+    return new_df
+    #+end
 
 def process_image(args):
     file_path, tube_locations, zero_t_timestamp = args
