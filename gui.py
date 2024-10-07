@@ -327,7 +327,8 @@ class InteractivePlot(QMainWindow):
                 raise FileNotFoundError(f"Image file not found: {image_path}")
 
             self.pcr_tubes, self.img = locate_pcr_tubes(image_path, min_area, circularity_threshold)
-            self.all_tubes = infer_missing_tubes(self.pcr_tubes, self.img.shape, tubes_size=(16, 10), rotate=rotation)
+            self.inferred_tubes = infer_missing_tubes(self.pcr_tubes, self.img.shape, tubes_size=(16, 10), rotate=rotation)
+            self.all_tubes = self.pcr_tubes + self.inferred_tubes
             self.inner_circles = detect_inner_circles(self.img, self.all_tubes)
             
             img_with_tubes = self.img.copy()
