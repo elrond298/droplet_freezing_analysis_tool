@@ -139,7 +139,8 @@ class InteractivePlot(QMainWindow):
         # right_layout.addWidget(self.image_path_input)
         self.sample_image_path_button = QPushButton("Select an Image")
         self.sample_image_path_button.clicked.connect(self.select_sample_image_path)
-        self.sample_image_path = '1/data/images/cropped.png'  # a default
+        # self.sample_image_path = '1/data/images/cropped.png'  # a default
+        self.sample_image_path = '1/data/images/2023-04-03_16-05-57.png'  # a default
         self.sample_image_path_label = QLabel(f"Current image: {os.path.basename(self.sample_image_path)}")
         right_layout.addWidget(self.sample_image_path_label)
         right_layout.addWidget(self.sample_image_path_button)
