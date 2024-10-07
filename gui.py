@@ -27,6 +27,15 @@ class StreamToTextEdit(io.StringIO):
         self.tab_number = tab_number
 
     def write(self, text):
+        """
+        Writes the given text to the log text edit widget.
+
+        This method emits a signal with the provided text and the tab number to update
+        the log text edit widget in the corresponding tab.
+
+        Args:
+            text (str): The text to be written to the log text edit widget.
+        """
         self.signal.emit(text, self.tab_number)
 
 class BrightnessWorker(QObject):
