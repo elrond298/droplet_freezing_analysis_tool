@@ -139,7 +139,7 @@ class InteractivePlot(QMainWindow):
         # right_layout.addWidget(self.image_path_input)
         self.sample_image_path_button = QPushButton("Select an Image")
         self.sample_image_path_button.clicked.connect(self.select_sample_image_path)
-        self.sample_image_path = '200/img/IMG00000000000001975884.png'  # a default
+        self.sample_image_path = '1/data/images/cropped.png'  # a default
         self.sample_image_path_label = QLabel(f"Current image: {os.path.basename(self.sample_image_path)}")
         right_layout.addWidget(self.sample_image_path_label)
         right_layout.addWidget(self.sample_image_path_button)
@@ -283,9 +283,9 @@ class InteractivePlot(QMainWindow):
         self.load_button_freezing_temperatures.setEnabled(False)
         
         # default setting
-        self.image_directory = '200/img'
-        self.tube_location_file = '200/inner_circles_20240823_112026.pkl'
-        self.temperature_recording_file = '200/t.xlsx'
+        self.image_directory = '1/data/images/'
+        self.tube_location_file = '1/inner_circles_20240823_112026.pkl'
+        self.temperature_recording_file = '1/data/temperature/CR1000_Sec_1.dat'
     
     def select_sample_image_path(self):
         file, _ = QFileDialog.getOpenFileName(self, "Select an Image")
@@ -327,7 +327,7 @@ class InteractivePlot(QMainWindow):
                 raise FileNotFoundError(f"Image file not found: {image_path}")
 
             self.pcr_tubes, self.img = locate_pcr_tubes(image_path, min_area, circularity_threshold)
-            self.all_tubes = infer_missing_tubes(self.pcr_tubes, self.img.shape, rotate=rotation)
+            self.all_tubes = infer_missing_tubes(self.pcr_tubes, self.img.shape, tubes_size=(16, 10), rotate=rotation)
             self.inner_circles = detect_inner_circles(self.img, self.all_tubes)
             
             img_with_tubes = self.img.copy()

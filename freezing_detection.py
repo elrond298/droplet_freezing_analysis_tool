@@ -44,7 +44,7 @@ def load_temperature_timeseries(temperature_recordings):
     # #+end
 
     #+begin load temperature from atmosphere experiment lab
-    df = pd.read_csv(file_path, skiprows=[0,2,3])  # some lines are additional information, which should be discarded
+    df = pd.read_csv(temperature_recordings, skiprows=[0,2,3])  # some lines are additional information, which should be discarded
     df["TIMESTAMP"] = pd.to_datetime(df["TIMESTAMP"])
     # discard data before certain timestamp specified
     TEMPERATURE_CUTOFF_TIMESTAMP = "2024-10-01 00:00:00"

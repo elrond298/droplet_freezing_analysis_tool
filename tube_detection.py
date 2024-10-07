@@ -67,7 +67,7 @@ def rotate_point(origin, point, angle):
     return qx, qy
 
 
-def infer_missing_tubes(pcr_tubes, image_shape, tubes_size=(8, 12), rotate='auto'):
+def infer_missing_tubes(pcr_tubes, image_shape, tubes_size=(16, 10), rotate='auto'):
     if not pcr_tubes:
         return []
 
@@ -121,7 +121,7 @@ def infer_missing_tubes(pcr_tubes, image_shape, tubes_size=(8, 12), rotate='auto
     return all_tubes
 
 
-def detect_inner_circles(image, tubes, roi_size=30):
+def detect_inner_circles(image, tubes, roi_size=30, radius=5):
     
     def create_circular_mask(h, w, center, radius):
         Y, X = np.ogrid[:h, :w]
@@ -134,7 +134,7 @@ def detect_inner_circles(image, tubes, roi_size=30):
         masked_roi = cv2.bitwise_and(roi, roi, mask=mask.astype(np.uint8))
         
         # Apply 5x5 average filter
-        kernel = np.ones((5,5), np.float32) / 25
+        kernel = np.ones((radius*2, radius*2), np.float32) / (radius ** 2 * 4)
         avg_roi = cv2.filter2D(masked_roi, -1, kernel)
         
         # Find the coordinates of the maximum average intensity pixel
@@ -192,7 +192,7 @@ def detect_inner_circles(image, tubes, roi_size=30):
         inner_circles.append({
             'x': roi_x + cx,
             'y': roi_y + cy,
-            'radius': 3,  # Set a small default radius for visualization
+            'radius': radius,  # Set a small default radius for visualization
             'method': 'avg_brightness'
         })
 
