@@ -1,0 +1,47 @@
+* Droplet Freezing Assay Offline Analysis Application
+
+This application is designed for the analysis of droplet freezing assays. It provides multiple tabs for different functionalities such as tube locating, freezing detection, and image cropping. Below is a detailed explanation of each tab and its elements.
+
+** Tube Locating Tab
+
+The Tube Locating Tab is used to detect and manage PCR tubes within an image.
+
+- **Image Selection**: Click the "Select an Image" button to choose an image file. The current image path is displayed below the button.
+- **Refresh Button**: Click the "Refresh" button to update the displayed image and detected tubes.
+- **Rotation Input**: Enter a rotation value or 'auto' to adjust the orientation of the detected tubes.
+- **Min Area Slider**: Adjust the minimum area threshold for tube detection.
+- **Circularity Slider**: Adjust the circularity threshold for tube detection.
+- **Save Inner Circles Button**: Click to save the detected inner circles to a file.
+- **Log Text Edit**: Displays log messages related to tube detection.
+
+** Freezing Detection Tab
+
+The Freezing Detection Tab is used to analyze freezing events based on temperature and brightness timeseries data.
+
+- **Image Directory Selection**: Click the "Select" button to choose the directory containing image files.
+- **Temperature Recording Selection**: Click the "Select" button to choose the temperature recording file.
+- **Tube Locations Selection**: Click the "Select" button to choose the tube locations file.
+- **Start Analysis Button**: Click to start the analysis of brightness timeseries data.
+- **Previous and Next Buttons**: Navigate between different tubes for detailed analysis.
+- **Go to Tube Input**: Enter a tube number and press Enter to jump to that tube.
+- **Save Freezing Temperatures Button**: Click to save the detected freezing temperatures to a file.
+- **Load Freezing Temperatures Button**: Click to load previously saved freezing temperatures.
+- **Log Text Edit**: Displays log messages related to freezing detection.
+
+** Image Cropping Tab
+
+The Image Cropping Tab is used to crop images for more precise analysis.
+
+- **Load Image Button**: Click to load an image for cropping.
+- **Apply Crop Button**: Click to apply the selected crop region to the image.
+- **Crop Region Selection**: Use the mouse to draw a rectangle around the area to crop.
+
+** Common Elements
+
+- **Log Text Edit**: Displays log messages for the current tab.
+- **Navigation Buttons**: Used to navigate between different tabs.
+
+** Special Features
+
+- **Interactive Plotting**: The application uses interactive plotting for real-time updates and selections.
+- **Multi-threading**: The brightness timeseries analysis runs in a separate thread to prevent UI freezing.
