@@ -21,6 +21,13 @@ import traceback
 import io
 
 class StreamToTextEdit(io.StringIO):
+    """
+    A custom stream class that redirects output to a QTextEdit widget in a specific tab.
+
+    This class inherits from io.StringIO and overrides the write method to emit a signal
+    with the text to be written and the tab number. This allows the text to be displayed
+    in the appropriate log text edit widget within the specified tab.
+    """
     def __init__(self, signal, tab_number):
         super().__init__()
         self.signal = signal
