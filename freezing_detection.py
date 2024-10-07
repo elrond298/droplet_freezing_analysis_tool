@@ -9,6 +9,17 @@ import multiprocessing as mp
 from scipy.signal import find_peaks
 
 def load_temperature_timeseries(temperature_recordings):
+    """
+    Loads and processes temperature timeseries data from a CSV file.
+
+    Args:
+        temperature_recordings (str): Path to the CSV file containing temperature recordings.
+
+    Returns:
+        pd.DataFrame: A DataFrame with columns 'timestamp' and 'temperature'.
+                      'timestamp' is a datetime object.
+                      'temperature' is the average temperature across multiple sensors.
+    """
     df = pd.read_csv(temperature_recordings, skiprows=[0,2,3])
     df["TIMESTAMP"] = pd.to_datetime(df["TIMESTAMP"])
     
@@ -28,6 +39,15 @@ def load_temperature_timeseries(temperature_recordings):
     return new_df
 
 def parse_timestamp_from_filename(filename):
+    """
+    Parses a timestamp from the filename.
+
+    Args:
+        filename (str): The filename to parse.
+
+    Returns:
+        datetime.datetime: The parsed timestamp if successful, otherwise None.
+    """
     filename = os.path.basename(filename)
     try:
         date_time_str = filename.split('.')[0]
@@ -36,6 +56,21 @@ def parse_timestamp_from_filename(filename):
         return None
 
 def process_image(args):
+    """
+    Processes a single image to calculate the average brightness around specified tube locations.
+
+    Args:
+        args (tuple): A tuple containing:
+            file_path (str): Path to the image file.
+            tube_locations (list): List of dictionaries containing 'x' and 'y' coordinates of tube locations.
+            zero_t_timestamp (datetime.datetime): Timestamp to filter images taken before this time.
+            use_filename_timestamp (bool): Whether to use the filename timestamp or file modification time.
+
+    Returns:
+        dict: A dictionary with timestamps as keys and nested dictionaries as values.
+              Each nested dictionary contains tube indices as keys and average brightness values as values.
+              Returns None if the timestamp is invalid or before the zero_t_timestamp.
+    """
     file_path, tube_locations, zero_t_timestamp, use_filename_timestamp = args
     
     if use_filename_timestamp:
@@ -72,6 +107,20 @@ def process_image(args):
     return result
 
 def load_brightness_timeseries(image_directory, tube_location, temperature_recordings, use_filename_timestamp=True, log_callback=None):
+    """
+    Loads and processes brightness timeseries data from image files.
+
+    Args:
+        image_directory (str): Directory containing the image files.
+        tube_location (str): Path to the file containing tube locations.
+        temperature_recordings (pd.DataFrame): DataFrame containing temperature recordings.
+        use_filename_timestamp (bool): Whether to use the filename timestamp or file modification time.
+        log_callback (function): Optional callback function for logging messages.
+
+    Returns:
+        dict: A dictionary with 'timestamp' as a key and an array of datetime objects as values.
+              Other keys are tube indices, each containing an array of average brightness values.
+    """
     def log(message):
         if log_callback:
             log_callback(message)
@@ -128,6 +177,20 @@ def load_brightness_timeseries(image_directory, tube_location, temperature_recor
     return brightness_timeseries
 
 def get_freezing_temperature(temperature_recordings, brightness_timeseries):
+    """
+    Determines the freezing temperature for each tube based on the brightness timeseries.
+
+    Args:
+        temperature_recordings (pd.DataFrame): DataFrame containing temperature recordings with 'timestamp' and 'temperature' columns.
+        brightness_timeseries (dict): Dictionary with 'timestamp' as a key and an array of datetime objects as values.
+                                      Other keys are tube indices, each containing an array of average brightness values.
+
+    Returns:
+        dict: A dictionary with tube indices as keys and nested dictionaries as values.
+              Each nested dictionary contains 'temperature' and 'timestamp' keys.
+              'temperature' is the freezing temperature, and 'timestamp' is the corresponding timestamp.
+              If no freezing point is found, 'temperature' and 'timestamp' are set to None.
+    """
     results = {}
     
     # Convert datetime objects to Unix timestamps if necessary
