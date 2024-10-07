@@ -1,17 +1,9 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
 from ipywidgets import interact, interactive, fixed, IntSlider, FloatSlider, Text
-from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
-
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
-from ipywidgets import interact, interactive, fixed
-from ipywidgets import IntSlider, FloatSlider, Text
-from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
 
 def locate_pcr_tubes(image, min_area=100, circularity_threshold=0.2):
     """
