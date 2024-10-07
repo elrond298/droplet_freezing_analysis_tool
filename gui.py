@@ -46,17 +46,45 @@ class StreamToTextEdit(io.StringIO):
         self.signal.emit(text, self.tab_number)
 
 class BrightnessWorker(QObject):
+    """
+    A worker class for processing brightness timeseries data in a separate thread.
+
+    This class is responsible for loading temperature recordings and brightness timeseries
+    data from the specified directories and files. It emits progress updates and logs
+    messages during the process.
+
+    Attributes:
+        finished (pyqtSignal): Signal emitted when the processing is finished, carrying
+                               the temperature recordings and brightness timeseries.
+        progress (pyqtSignal): Signal emitted to update the progress of the processing.
+        log (pyqtSignal): Signal emitted to log messages during the processing.
+    """
     finished = pyqtSignal(object, object)
     progress = pyqtSignal(int)
     log = pyqtSignal(str)
 
     def __init__(self, image_directory, tube_location_file, temperature_recording_file):
+        """
+        Initializes the BrightnessWorker with the specified directories and files.
+
+        Args:
+            image_directory (str): The directory containing the image files.
+            tube_location_file (str): The file containing the tube locations.
+            temperature_recording_file (str): The file containing the temperature recordings.
+        """
         super().__init__()
         self.image_directory = image_directory
         self.tube_location_file = tube_location_file
         self.temperature_recording_file = temperature_recording_file
 
     def run(self):
+        """
+        Executes the main processing logic for loading temperature and brightness timeseries data.
+
+        This method loads the temperature recordings and brightness timeseries data,
+        emits progress updates, and logs messages during the process. Once the processing
+        is complete, it emits the finished signal with the loaded data.
+        """
         temperature_recordings = load_temperature_timeseries(self.temperature_recording_file)
         self.progress.emit(5)  # Emit progress update
         
