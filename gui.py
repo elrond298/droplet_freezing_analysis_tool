@@ -99,6 +99,16 @@ class BrightnessWorker(QObject):
         self.finished.emit(temperature_recordings, brightness_timeseries)
         
 class InteractivePlot(QMainWindow):
+    """
+    A main window class for the Droplet Freezing Assay Offline Analysis application.
+
+    This class sets up the main window with multiple tabs for different functionalities
+    such as tube locating, freezing detection, and image cropping. It handles user
+    interactions, updates the log, and manages the display of various plots and images.
+
+    Attributes:
+        update_log_signal (pyqtSignal): Signal emitted to update the log with a message and tab number.
+    """
     update_log_signal = pyqtSignal(str, int)  # str for message, int for tab number
     def __init__(self):
         super().__init__()
