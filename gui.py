@@ -1,16 +1,18 @@
 import sys
 import os
 import numpy as np
+import pandas as pd
 import pickle
 import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QListWidget, QLineEdit, QSlider, QLabel, QSpinBox, 
                              QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox)
-from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSignal, QThread
+from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSignal, QThread, QRectF
+from PyQt5.QtGui import QPixmap, QPainter, QPen
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
-from matplotlib.widgets import SpanSelector
+from matplotlib.widgets import SpanSelector, RectangleSelector
 
 from tube_detection import locate_pcr_tubes, calculate_rotation_angle, rotate_point, infer_missing_tubes, detect_inner_circles
 from freezing_detection import load_brightness_timeseries, load_temperature_timeseries, get_freezing_temperature
@@ -19,12 +21,13 @@ import traceback
 import io
 
 class StreamToTextEdit(io.StringIO):
-    def __init__(self, text_edit):
+    def __init__(self, signal, tab_number):
         super().__init__()
-        self.text_edit = text_edit
+        self.signal = signal
+        self.tab_number = tab_number
 
     def write(self, text):
-        self.text_edit.append(text)
+        self.signal.emit(text, self.tab_number)
 
 class BrightnessWorker(QObject):
     finished = pyqtSignal(object, object)
@@ -45,13 +48,14 @@ class BrightnessWorker(QObject):
             self.image_directory, 
             self.tube_location_file, 
             temperature_recordings,
-            log_callback=self.log.emit  # Pass the log signal as a callback
+            log_callback=lambda msg: self.log.emit(msg)  # Pass the log signal as a callback
         )
         
         self.progress.emit(100)  # Emit progress update
         self.finished.emit(temperature_recordings, brightness_timeseries)
         
 class InteractivePlot(QMainWindow):
+    update_log_signal = pyqtSignal(str, int)  # str for message, int for tab number
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Droplet Freezing Assay Offline Analysis')
@@ -66,19 +70,18 @@ class InteractivePlot(QMainWindow):
         self.tab_widget = QTabWidget()
         main_layout.addWidget(self.tab_widget)
 
-        # 创建第一个标签页
+        # Create tabs
         self.tab1 = QWidget()
-        self.tab_widget.addTab(self.tab1, "Tube Locating")
-
-        # 创建第二个标签页
         self.tab2 = QWidget()
+        self.tab3 = QWidget()
+        self.tab_widget.addTab(self.tab1, "Tube Locating")
         self.tab_widget.addTab(self.tab2, "Freezing Detection")
+        self.tab_widget.addTab(self.tab3, "Image Cropping")
 
-        # 设置第一个标签页的布局
+        # Set up tab layouts
         self.setup_tube_locating_tab()
-
-        # 设置第二个标签页的布局
         self.setup_freezing_detection_tab()
+        self.setup_image_cropping_tab()
 
         # 初始化更新定时器
         self.update_timer = QTimer()
@@ -91,7 +94,17 @@ class InteractivePlot(QMainWindow):
         self.img = None
 
         # 绘制初始图表
+        self.crop_region = None
+        self.crop_selector = None
         self.plot_tube_detection_results()
+        
+        self.update_log_signal.connect(self.update_log)
+        
+    def update_log(self, message, tab_number):
+        if tab_number == 1:
+            self.log_text_edit.append(message)
+        elif tab_number == 2:
+            self.log_text_edit2.append(message)
 
     def create_selection_group(self, title, button_text, selection_method):
         group = QGroupBox(title)
@@ -145,6 +158,10 @@ class InteractivePlot(QMainWindow):
         right_layout.addWidget(self.sample_image_path_label)
         right_layout.addWidget(self.sample_image_path_button)
         
+        # Add refresh button
+        self.refresh_button = QPushButton("Refresh")
+        self.refresh_button.clicked.connect(self.plot_tube_detection_results)
+        right_layout.addWidget(self.refresh_button)
 
         # Rotate Input
         self.rotation_input = QLineEdit()
@@ -187,15 +204,15 @@ class InteractivePlot(QMainWindow):
         right_layout.addWidget(QLabel("Log:"))
         right_layout.addWidget(self.log_text_edit, 1)  # 添加拉伸因子
         
-        # 重定向标准输出到文本框
-        sys.stdout = StreamToTextEdit(self.log_text_edit)
-        
         # 拉伸一下
         right_layout.setSpacing(10)
 
         # 将部件添加到主布局
         tab1_layout.addWidget(left_widget, 2)
         tab1_layout.addWidget(right_widget, 1)
+        
+        # 重定向输出
+        sys.stdout = StreamToTextEdit(self.update_log_signal, 1)
 
     def setup_freezing_detection_tab(self):
         tab2_layout = QHBoxLayout(self.tab2)
@@ -285,8 +302,34 @@ class InteractivePlot(QMainWindow):
         
         # default setting
         self.image_directory = '1/data/images/'
-        self.tube_location_file = '1/inner_circles_20240823_112026.pkl'
+        self.tube_location_file = '1/inner_circles_20241007_134313.pkl'
         self.temperature_recording_file = '1/data/temperature/CR1000_Sec_1.dat'
+    
+    def setup_image_cropping_tab(self):
+        tab3_layout = QHBoxLayout(self.tab3)
+
+        # Create matplotlib figure and canvas
+        self.figure_crop = Figure(figsize=(5, 4), dpi=100)
+        self.canvas_crop = FigureCanvas(self.figure_crop)
+        self.ax_crop = self.figure_crop.add_subplot(111)
+
+        # Create control panel
+        control_widget = QWidget()
+        control_layout = QVBoxLayout(control_widget)
+
+        # Add load image button
+        self.load_crop_image_button = QPushButton("Load Image")
+        self.load_crop_image_button.clicked.connect(self.load_crop_image)
+        control_layout.addWidget(self.load_crop_image_button)
+
+        # Add apply crop button
+        self.apply_crop_button = QPushButton("Apply Crop")
+        self.apply_crop_button.clicked.connect(self.apply_crop)
+        control_layout.addWidget(self.apply_crop_button)
+
+        # Add widgets to main layout
+        tab3_layout.addWidget(self.canvas_crop, 2)
+        tab3_layout.addWidget(control_widget, 1)
     
     def select_sample_image_path(self):
         file, _ = QFileDialog.getOpenFileName(self, "Select an Image")
@@ -327,7 +370,16 @@ class InteractivePlot(QMainWindow):
             if not os.path.exists(image_path):
                 raise FileNotFoundError(f"Image file not found: {image_path}")
 
-            self.pcr_tubes, self.img = locate_pcr_tubes(image_path, min_area, circularity_threshold)
+            # Load the image
+            self.img = cv2.imread(image_path)
+
+            # Apply cropping if a region is set
+            if self.crop_region:
+                x, y, w, h = self.crop_region
+                self.img = self.img[y:y+h, x:x+w]
+                self.log_text_edit.append(f"Using cropped region: {self.crop_region}")
+
+            self.pcr_tubes, _ = locate_pcr_tubes(self.img, min_area, circularity_threshold)
             self.inferred_tubes = infer_missing_tubes(self.pcr_tubes, self.img.shape, tubes_size=(16, 10), rotate=rotation)
             self.all_tubes = self.pcr_tubes + self.inferred_tubes
             self.inner_circles = detect_inner_circles(self.img, self.all_tubes)
@@ -429,23 +481,29 @@ class InteractivePlot(QMainWindow):
         print(f"Circularity updated to {value/100:.2f}")
 
     def save_inner_circles(self):
-        # 生成默认文件名
         default_filename = f"inner_circles_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
-        
-        # 组合默认的完整文件路径
         default_filepath = os.path.join(".", default_filename)
 
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Inner Circles", default_filepath, "Pickle Files (*.pkl)")
         if file_path:
+            # Restore locations if a crop region was used
+            if self.crop_region:
+                x, y, _, _ = self.crop_region
+                restored_circles = []
+                for circle in self.inner_circles:
+                    restored_circle = circle.copy()
+                    restored_circle['x'] += x
+                    restored_circle['y'] += y
+                    restored_circles.append(restored_circle)
+            else:
+                restored_circles = self.inner_circles
+
             with open(file_path, 'wb') as f:
-                pickle.dump(self.inner_circles, f)
-            print(f"Inner circles saved to {file_path}")
+                pickle.dump(restored_circles, f)
+            self.log_text_edit.append(f"Inner circles saved to {file_path}")
 
     def save_freezing_events_data(self):
-        # Generate default filename
         default_filename = f"freezing_temperatures_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-        
-        # Combine default full file path
         default_filepath = os.path.join(".", default_filename)
 
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Freezing Temperatures", default_filepath, "Text Files (*.txt)")
@@ -455,12 +513,14 @@ class InteractivePlot(QMainWindow):
                 for tube, data in self.freezing_temperatures.items():
                     temperature = data['temperature']
                     timestamp = data['timestamp']
-                    # Convert timestamp to a readable date-time format
-                    datetime_str = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
-                    f.write(f"{tube},{temperature:.4f},{datetime_str}\n")
+                    if temperature is not None and timestamp is not None:
+                        datetime_str = pd.Timestamp(timestamp).isoformat()  # numpy datetime, str looks like: 2023-04-03T16:30:55.000000000
+                        f.write(f"{tube},{temperature:.4f},{datetime_str}\n")
+                    else:
+                        f.write(f"{tube},N/A,N/A\n")
             
             self.log_text_edit2.append(f"Freezing Temperatures saved to {file_path}")
-
+            
     def load_freezing_events_data(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Load Freezing Temperatures", ".", "Text Files (*.txt)")
         if file_path:
@@ -469,15 +529,25 @@ class InteractivePlot(QMainWindow):
                 with open(file_path, 'r') as f:
                     next(f)  # Skip the header line
                     for line in f:
-                        tube, temperature, datetime_str = line.strip().split(',')
-                        tube = int(tube)
-                        temperature = float(temperature)
-                        timestamp = datetime.datetime.strptime(datetime_str, '%Y-%m-%d %H:%M:%S').timestamp()
-                        
-                        self.freezing_temperatures[tube] = {
-                            'temperature': temperature,
-                            'timestamp': timestamp
-                        }
+                        try:
+                            tube, temperature, datetime_str = line.strip().split(',')
+                            tube = int(tube)
+                            if temperature != 'N/A':
+                                temperature = float(temperature)
+                                timestamp = pd.to_datetime(datetime_str).to_numpy()
+                                
+                                self.freezing_temperatures[tube] = {
+                                    'temperature': temperature,
+                                    'timestamp': timestamp
+                                }
+                            else:
+                                self.freezing_temperatures[tube] = {
+                                    'temperature': None,
+                                    'timestamp': None
+                                }
+                        except ValueError as e:
+                            self.log_text_edit2.append(f"Error parsing line: {line}. Error: {str(e)}")
+                            continue
                 
                 self.log_text_edit2.append(f"Freezing Temperatures loaded from {file_path}")
                 self.log_text_edit2.append(f"Loaded data for {len(self.freezing_temperatures)} tubes")
@@ -490,8 +560,11 @@ class InteractivePlot(QMainWindow):
                 self.log_text_edit2.append(f"Error loading file: {str(e)}")
         else:
             self.log_text_edit2.append("No file selected")
-
+        
     def load_brightness_series(self):
+        # Load inner circles first
+        self.load_inner_circles()
+
         # Disable the start button to prevent multiple threads
         self.start_load_timeseries_button.setEnabled(False)
         
@@ -519,7 +592,7 @@ class InteractivePlot(QMainWindow):
         self.thread.finished.connect(
             lambda: self.log_text_edit2.append("Analysis completed!")
         )
-
+    
     def update_progress(self, value):
         self.log_text_edit2.append(f"Progress: {value}%")
 
@@ -530,14 +603,20 @@ class InteractivePlot(QMainWindow):
             self.temperature_recordings,
             self.brightness_timeseries
         )
-        self.num_tubes = len(self.inner_circles)
+        self.num_tubes = len(self.inner_circles)  # Use the loaded inner circles
         self.current_tube = 0
         self.log_text_edit2.append("Data loaded successfully!")
+        
+        # Count valid freezing points
+        valid_freezing_points = sum(1 for data in self.freezing_temperatures.values() 
+                                    if data['temperature'] is not None and data['timestamp'] is not None)
+        self.log_text_edit2.append(f"Detected freezing points for {valid_freezing_points} out of {self.num_tubes} tubes")
+        
         self.update_brightness_timeseries_plot()
         self.enable_controls()
 
     def update_subprocess_log(self, message):
-        self.log_text_edit2.append(message)
+        self.update_log_signal.emit(message, 2)
         
     def enable_controls(self):
         self.next_button.setEnabled(True)
@@ -623,17 +702,26 @@ class InteractivePlot(QMainWindow):
 
     def update_freezing_point(self, xmin=None, xmax=None):
         if xmin is None and xmax is None:
-            freezing_timestamp = self.freezing_temperatures[self.current_tube]['timestamp']
-            freezing_temp_index = np.argmin(np.abs(self.current_tube_timestamps - freezing_timestamp))
-            freezing_temp = self.current_tube_temperature[freezing_temp_index]
-            freezing_brightness = self.current_tube_brightness[freezing_temp_index]
+            if self.current_tube in self.freezing_temperatures:
+                freezing_data = self.freezing_temperatures[self.current_tube]
+                freezing_temp = freezing_data['temperature']
+                freezing_timestamp = freezing_data['timestamp']
+                if freezing_temp is not None and freezing_timestamp is not None:
+                    freezing_temp_index = np.argmin(np.abs(self.current_tube_timestamps - freezing_timestamp))
+                    freezing_brightness = self.current_tube_brightness[freezing_temp_index]
+                else:
+                    self.log_text_edit2.append(f"No freezing point detected for tube {self.current_tube}")
+                    return
+            else:
+                self.log_text_edit2.append(f"No freezing data available for tube {self.current_tube}")
+                return
         else:
             # Recalculate freezing point within the selected range
             mask = (self.current_tube_temperature >= xmin) & (self.current_tube_temperature <= xmax)
             if np.sum(mask) >= 3:
-                temp_range = self.current_tube_temperature[mask]
-                bright_range = self.current_tube_brightness[mask]
-                time_range = self.current_tube_timestamps[mask]
+                temp_range = self.current_tube_temperature[mask].to_numpy()
+                bright_range = self.current_tube_brightness[mask]  # already a numpy array
+                time_range = self.current_tube_timestamps[mask]  # already a numpy array
                 
                 # Calculate the derivative (rate of change) of brightness
                 brightness_derivative = np.diff(bright_range)
@@ -645,29 +733,71 @@ class InteractivePlot(QMainWindow):
                 freezing_timestamp = time_range[freezing_index]
 
                 # Update the freezing temperature for this tube
-                self.freezing_temperatures[self.current_tube]['temperature'] = freezing_temp
-                self.freezing_temperatures[self.current_tube]['timestamp'] = freezing_timestamp
+                self.freezing_temperatures[self.current_tube] = {
+                    'temperature': freezing_temp,
+                    'timestamp': freezing_timestamp
+                }
             else:
                 self.log_text_edit2.append("Selected range is too small. Please select a larger range.")
                 return
 
-        if freezing_temp is not None:            
-            # Remove old freezing point if it exists
-            if hasattr(self, 'freezing_point'):
-                self.freezing_point.remove()
-            
-            # Plot new freezing point
-            self.freezing_point, = self.ax2.plot(freezing_temp, freezing_brightness, 'ro', markersize=10, 
-                                                 label=f"Freezing Point: {freezing_temp:.2f}°C")
-            self.ax2.legend()
-            self.canvas2.draw()
-            self.log_text_edit2.append(f"Updated freezing point for tube {self.current_tube}: {freezing_temp:.2f}°C at timestamp {freezing_timestamp}")
-        else:
-            self.log_text_edit2.append(f"No freezing point detected for tube {self.current_tube}")
+        # Remove old freezing point if it exists
+        if hasattr(self, 'freezing_point'):
+            self.freezing_point.remove()
+        
+        # Plot new freezing point
+        self.freezing_point, = self.ax2.plot(freezing_temp, freezing_brightness, 'ro', markersize=10, 
+                                            label=f"Freezing Point: {freezing_temp:.2f}°C")
+        self.ax2.legend()
+        self.canvas2.draw()
+        self.log_text_edit2.append(f"Updated freezing point for tube {self.current_tube}: {freezing_temp:.2f}°C at timestamp {freezing_timestamp}")
 
     def on_brightness_span_select(self, xmin, xmax):
         self.update_freezing_point(xmin, xmax)
+
+    def load_crop_image(self):
+        self.ax_crop.clear()
+        img = cv2.imread(self.sample_image_path)
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        self.ax_crop.imshow(img_rgb)
+        self.ax_crop.axis('off')
         
+        if self.crop_selector is not None:
+            self.crop_selector.set_active(False)
+        
+        self.crop_selector = RectangleSelector(
+            self.ax_crop, self.on_crop_select,
+            useblit=True,
+            button=[1, 3],  # Left and right mouse buttons
+            minspanx=5, minspany=5,
+            spancoords='pixels',
+            interactive=True
+        )
+        
+        self.canvas_crop.draw()
+
+    def on_crop_select(self, eclick, erelease):
+        x1, y1 = int(eclick.xdata), int(eclick.ydata)
+        x2, y2 = int(erelease.xdata), int(erelease.ydata)
+        self.crop_region = (min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1))
+        self.log_text_edit.append(f"Crop region set to: {self.crop_region}")
+
+    def apply_crop(self):
+        if self.crop_region:
+            self.plot_tube_detection_results()
+            self.log_text_edit.append("Crop applied to tube detection")
+        else:
+            self.log_text_edit.append("No crop region selected")
+            
+    def load_inner_circles(self):
+        try:
+            with open(self.tube_location_file, 'rb') as f:
+                self.inner_circles = pickle.load(f)
+            self.log_text_edit2.append(f"Loaded {len(self.inner_circles)} inner circles from {self.tube_location_file}")
+        except Exception as e:
+            self.log_text_edit2.append(f"Error loading inner circles: {str(e)}")
+            
+
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     main_window = InteractivePlot()

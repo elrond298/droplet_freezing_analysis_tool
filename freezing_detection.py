@@ -2,96 +2,64 @@ import pandas as pd
 import numpy as np
 import os
 import datetime
-import numpy as np
 from PIL import Image
 import pickle
-
 from collections import defaultdict
 import multiprocessing as mp
-
 from scipy.signal import find_peaks
 
-
 def load_temperature_timeseries(temperature_recordings):
-    """
-    temperature_recordings: string, file of temperature storage
-    
-    return:
-    dictionary
-        timestamp: time
-        temperature: average temperature
-    """
-    # #+begin load temperature data from W613 thermal sensors:
-    # df = pd.read_excel(temperature_recordings)
-    # def to_timestamp(lst):
-    #     bias = 0
-    #     for i in range(len(lst)):
-    #         lst[i] = datetime.datetime.fromisoformat(lst[i])
-    #         lst[i] = datetime.datetime.timestamp(lst[i]) - bias
-    #     return lst
-
-    # df["时间"] = to_timestamp(df["时间"].to_string(index=False).split("\n"))
-
-    # temperature_recordings = {}
-    # temperature_recordings["timestamp"] = df["时间"].to_numpy()
-    # if df["通道01(℃)"].min() < 0:
-    #     temperature_recordings["temperature"] = (df["通道01(℃)"] + df["通道02(℃)"] + df["通道03(℃)"] + df["通道04(℃)"]) / 4
-    # else:
-    #     temperature_recordings["temperature"] = (df["通道05(℃)"] + df["通道02(℃)"] + df["通道03(℃)"] + df["通道06(℃)"]) / 4
-
-    # temperature_recordings["temperature"] = temperature_recordings["temperature"].to_numpy()
-    # return temperature_recordings # a 1D array, contains the temperature recording
-    # #+end
-
-    #+begin load temperature from atmosphere experiment lab
-    df = pd.read_csv(temperature_recordings, skiprows=[0,2,3])  # some lines are additional information, which should be discarded
+    df = pd.read_csv(temperature_recordings, skiprows=[0,2,3])
     df["TIMESTAMP"] = pd.to_datetime(df["TIMESTAMP"])
-    # discard data before certain timestamp specified
-    TEMPERATURE_CUTOFF_TIMESTAMP = "2024-10-01 00:00:00"
+    
+    TEMPERATURE_CUTOFF_TIMESTAMP = "2023-04-02 14:00:00"
     cutoff_timestamp = pd.to_datetime(TEMPERATURE_CUTOFF_TIMESTAMP)
     df = df[df["TIMESTAMP"] >= cutoff_timestamp]
 
     new_df = pd.DataFrame()
     new_df["timestamp"] = df["TIMESTAMP"]
-    new_df["RT_C_Avg(1)"] = df["RT_C_Avg(1)"]
-    new_df["RT_C_Avg(2)"] = df["RT_C_Avg(2)"]
-    new_df["RT_C_Avg(3)"] = df["RT_C_Avg(3)"]
-    new_df["RT_C_Avg(4)"] = df["RT_C_Avg(4)"]
-    new_df["RT_C_Avg(5)"] = df["RT_C_Avg(5)"]
-    new_df["RT_C_Avg(6)"] = df["RT_C_Avg(6)"]
-    new_df["RT_C_Avg(7)"] = df["RT_C_Avg(7)"]
-    new_df["RT_C_Avg(8)"] = df["RT_C_Avg(8)"]
-    # ensure the average temperature as output
-    new_df["temperature"] = (df["RT_C_Avg(1)"] +
-                          df["RT_C_Avg(2)"] +
-                          df["RT_C_Avg(3)"] +
-                          df["RT_C_Avg(4)"] +
-                          df["RT_C_Avg(5)"] +
-                          df["RT_C_Avg(6)"] +
-                          df["RT_C_Avg(7)"] +
-                          df["RT_C_Avg(8)"]
-                          ) / 8
+    for i in range(1, 9):
+        new_df[f"RT_C_Avg({i})"] = df[f"RT_C_Avg({i})"]
+    
+    new_df["temperature"] = df[[f"RT_C_Avg({i})" for i in range(1, 9)]].mean(axis=1)
+    
+    new_df = new_df.reset_index(drop=True)
+    
     return new_df
-    #+end
+
+def parse_timestamp_from_filename(filename):
+    filename = os.path.basename(filename)
+    try:
+        date_time_str = filename.split('.')[0]
+        return datetime.datetime.strptime(date_time_str, '%Y-%m-%d_%H-%M-%S')
+    except ValueError:
+        return None
 
 def process_image(args):
-    file_path, tube_locations, zero_t_timestamp = args
-    timestamp = os.path.getmtime(file_path)
+    file_path, tube_locations, zero_t_timestamp, use_filename_timestamp = args
+    
+    if use_filename_timestamp:
+        filename = os.path.basename(file_path)
+        timestamp = parse_timestamp_from_filename(filename)
+        if timestamp is None:
+            return None
+    else:
+        # Assuming the file modification time is also in UTC+8
+        timestamp = datetime.datetime.fromtimestamp(os.path.getmtime(file_path))
+    
     if timestamp <= zero_t_timestamp:
         return None
 
-    rounded_timestamp = int(timestamp)
     image = Image.open(file_path).convert('L')
     image_array = np.array(image)
     
     height, width = image_array.shape
 
-    result = {rounded_timestamp: {}}
+    result = {timestamp: {}}
     for i, location in enumerate(tube_locations):
         x, y = int(location['x']), int(location['y'])
         box_size = 3
         
-        # Ensure box boundaries are within image dimensions
         y_start = max(0, y - box_size)
         y_end = min(height, y + box_size + 1)
         x_start = max(0, x - box_size)
@@ -99,46 +67,38 @@ def process_image(args):
         
         box = image_array[y_start:y_end, x_start:x_end]
         average_brightness = np.mean(box)
-        result[rounded_timestamp][i] = average_brightness
+        result[timestamp][i] = average_brightness
 
     return result
 
-def load_brightness_timeseries(image_directory, tube_location, temperature_recordings, log_callback=None):
-    """
-    image_directory: string
-    tube_location: list of dictionary, {'x': float, 'y': float}, pickle saved data
-    temperature_recordings: dictionary with 'timestamp' and 'temperature' numpy arrays
-    log_callback: function to handle logging messages
-    """
+def load_brightness_timeseries(image_directory, tube_location, temperature_recordings, use_filename_timestamp=True, log_callback=None):
     def log(message):
         if log_callback:
             log_callback(message)
         else:
             print(message)
             
-    # Load tube locations
     with open(tube_location, 'rb') as f:
         tube_locations = pickle.load(f)
 
-    zero_t_timestamp = temperature_recordings['timestamp'][np.argmax(temperature_recordings['temperature'] < 0)]
+    zero_t_index = (temperature_recordings['temperature'] < 0).idxmax()
+    zero_t_timestamp = temperature_recordings['timestamp'].iloc[zero_t_index]
+    print(zero_t_timestamp)
 
-    # Walkthrough images in image_directory, identified by file suffix: png, jpg
     image_files = [f for f in os.listdir(image_directory) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
     image_files.sort()
 
-    # Prepare arguments for multiprocessing
-    args_list = [(os.path.join(image_directory, image_file), tube_locations, zero_t_timestamp) 
+    args_list = [(os.path.join(image_directory, image_file), tube_locations, zero_t_timestamp, use_filename_timestamp) 
                  for image_file in image_files]
 
-    # Use multiprocessing to process images
     total_images = len(args_list)
     log(f"Starting to process {total_images} images")
 
     second_brightness = defaultdict(lambda: defaultdict(list))
     with mp.Pool() as pool:
         for i, result in enumerate(pool.imap_unordered(process_image, args_list, chunksize=10)):
-            if i % 100 == 0:  # Increase frequency of updates
-                progress = int((i / total_images) * 95)  # Leave 5% for final processing
+            if i % 100 == 0:
+                progress = int((i / total_images) * 95)
                 log(f"Processed {i} / {total_images} images ({progress}%)")
             
             if result is not None:
@@ -148,7 +108,6 @@ def load_brightness_timeseries(image_directory, tube_location, temperature_recor
 
     log("Image processing complete. Calculating average brightness...")
 
-    # Calculate average brightness for each second
     brightness_timeseries = {'timestamp': []}
     for i in range(len(tube_locations)):
         brightness_timeseries[i] = []
@@ -159,32 +118,27 @@ def load_brightness_timeseries(image_directory, tube_location, temperature_recor
             avg_brightness = np.mean(second_brightness[timestamp][i])
             brightness_timeseries[i].append(avg_brightness)
 
-    # Convert lists to numpy arrays for easier manipulation
     brightness_timeseries['timestamp'] = np.array(brightness_timeseries['timestamp'])
     for i in range(len(tube_locations)):
         brightness_timeseries[i] = np.array(brightness_timeseries[i])
 
+    brightness_timeseries['timestamp'] = pd.to_datetime(brightness_timeseries['timestamp'])
+
     log("Brightness time series calculation complete")
     return brightness_timeseries
 
-
-
 def get_freezing_temperature(temperature_recordings, brightness_timeseries):
-    """
-    temperature_recordings: dictionary with 'timestamp' and 'temperature' numpy arrays
-    brightness_timeseries:
-        timestamp: numpy array of timestamps
-        tube_index: a array of brightness for each tube
-    
-    Returns:
-    A dictionary with tube indices as keys and dictionaries containing 'temperature' and 'timestamp' as values
-    """
     results = {}
     
-    # Ensure timestamps are aligned
-    common_timestamps = np.intersect1d(temperature_recordings['timestamp'], brightness_timeseries['timestamp'])
-    temp_indices = np.searchsorted(temperature_recordings['timestamp'], common_timestamps)
-    bright_indices = np.searchsorted(brightness_timeseries['timestamp'], common_timestamps)
+    # Convert datetime objects to Unix timestamps if necessary
+    temp_timestamps = temperature_recordings['timestamp']
+    
+    # Ensure brightness timestamps are in Unix timestamp format
+    bright_timestamps = brightness_timeseries['timestamp']
+    
+    common_timestamps = np.intersect1d(temp_timestamps, bright_timestamps)
+    temp_indices = np.searchsorted(temp_timestamps, common_timestamps)
+    bright_indices = np.searchsorted(bright_timestamps, common_timestamps)
     
     for tube_index in range(len(brightness_timeseries) - 1):  # Exclude 'timestamp' key
         tube_brightness = brightness_timeseries[tube_index][bright_indices]
@@ -192,18 +146,25 @@ def get_freezing_temperature(temperature_recordings, brightness_timeseries):
         # Calculate the derivative (rate of change) of brightness
         brightness_derivative = np.diff(tube_brightness)
         
-        # Find the index of the largest absolute decrease
-        freezing_index = np.argmin(brightness_derivative)
-        
-        # Get the timestamp and temperature at the freezing point
-        freezing_timestamp = common_timestamps[freezing_index]
-        freezing_temperature = np.interp(freezing_timestamp, 
-                                         temperature_recordings['timestamp'], 
-                                         temperature_recordings['temperature'])
-        
-        results[tube_index] = {
-            'temperature': freezing_temperature,
-            'timestamp': freezing_timestamp
-        }
+        if len(brightness_derivative) > 0:
+            # Find the index of the largest absolute decrease
+            freezing_index = np.argmin(brightness_derivative)
+            
+            # Get the timestamp and temperature at the freezing point
+            freezing_timestamp = common_timestamps[freezing_index]
+            freezing_temperature = np.interp(common_timestamps[freezing_index], 
+                                             temp_timestamps, 
+                                             temperature_recordings['temperature'])
+            
+            results[tube_index] = {
+                'temperature': freezing_temperature,
+                'timestamp': freezing_timestamp
+            }
+        else:
+            # Handle the case where there's not enough data to determine a freezing point
+            results[tube_index] = {
+                'temperature': None,
+                'timestamp': None
+            }
     
     return results

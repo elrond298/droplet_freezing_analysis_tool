@@ -13,8 +13,11 @@ from ipywidgets import IntSlider, FloatSlider, Text
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 
-def locate_pcr_tubes(image_path, min_area=100, circularity_threshold=0.2):
-    img = cv2.imread(image_path)
+def locate_pcr_tubes(image, min_area=100, circularity_threshold=0.2):
+    if isinstance(image, str):
+        img = cv2.imread(image)
+    else:
+        img = image
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
