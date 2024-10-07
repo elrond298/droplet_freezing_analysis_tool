@@ -102,23 +102,26 @@ def infer_missing_tubes(pcr_tubes, image_shape, tubes_size=(16, 10), rotate='aut
     detected_tubes = {(tube['x'], tube['y']): tube for tube in pcr_tubes}
 
     # Infer missing tubes
-    all_tubes = []
+    inferred_tubes = []
     for y in y_lines:
         for x in x_lines:
             # Rotate the point back to the original orientation
             original_x, original_y = rotate_point(center, (x, y), np.radians(angle))
             closest_point = (int(original_x), int(original_y))
             if closest_point in detected_tubes:
-                all_tubes.append(detected_tubes[closest_point])
+                continue
             else:
-                all_tubes.append({
-                    "x": int(original_x),
-                    "y": int(original_y),
-                    "radius": int(avg_radius),
-                    "inferred": True
-                })
+                # Calculate the minimum distance to all detected tubes
+                min_distance = min(np.linalg.norm([tube['x'] - original_x, tube['y'] - original_y]) for tube in pcr_tubes)
+                if min_distance > avg_radius:
+                    inferred_tubes.append({
+                        "x": int(original_x),
+                        "y": int(original_y),
+                        "radius": int(avg_radius),
+                        "inferred": True
+                    })
 
-    return all_tubes
+    return inferred_tubes
 
 
 def detect_inner_circles(image, tubes, roi_size=30, radius=5):
