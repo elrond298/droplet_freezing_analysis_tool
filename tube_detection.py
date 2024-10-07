@@ -14,6 +14,18 @@ from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 
 def locate_pcr_tubes(image, min_area=100, circularity_threshold=0.2):
+    """
+    Locates PCR tubes in an image based on contour detection and circularity.
+
+    Args:
+        image (str or numpy.ndarray): Path to the image file or a numpy array representing the image.
+        min_area (int): Minimum area threshold for detecting contours.
+        circularity_threshold (float): Circularity threshold to filter contours.
+
+    Returns:
+        list: A list of dictionaries containing the center coordinates ('x', 'y') and radius ('radius') of detected PCR tubes.
+        numpy.ndarray: The processed image as a numpy array.
+    """
     if isinstance(image, str):
         img = cv2.imread(image)
     else:
@@ -39,6 +51,15 @@ def locate_pcr_tubes(image, min_area=100, circularity_threshold=0.2):
 
 
 def calculate_rotation_angle(coords):
+    """
+    Calculates the rotation angle of the PCR tubes based on Principal Component Analysis (PCA).
+
+    Args:
+        coords (numpy.ndarray): A 2D array of coordinates (x, y) of the detected PCR tubes.
+
+    Returns:
+        float: The calculated rotation angle in degrees, adjusted to be between -45 and 45 degrees.
+    """
     # Perform PCA
     pca = PCA(n_components=2)
     pca.fit(coords)
@@ -60,7 +81,15 @@ def calculate_rotation_angle(coords):
 
 def rotate_point(origin, point, angle):
     """
-    Rotate a point counterclockwise by a given angle around a given origin.
+    Rotates a point counterclockwise by a given angle around a given origin.
+
+    Args:
+        origin (tuple): The origin point (ox, oy) around which to rotate.
+        point (tuple): The point (px, py) to be rotated.
+        angle (float): The angle in radians to rotate the point.
+
+    Returns:
+        tuple: The new coordinates (qx, qy) of the rotated point.
     """
     ox, oy = origin
     px, py = point
@@ -71,6 +100,18 @@ def rotate_point(origin, point, angle):
 
 
 def infer_missing_tubes(pcr_tubes, image_shape, tubes_size=(16, 10), rotate='auto'):
+    """
+    Infers the positions of missing PCR tubes based on detected tubes and image shape.
+
+    Args:
+        pcr_tubes (list): A list of dictionaries containing the center coordinates ('x', 'y') and radius ('radius') of detected PCR tubes.
+        image_shape (tuple): The shape of the image (height, width).
+        tubes_size (tuple): The expected size of the PCR tube grid (rows, columns).
+        rotate (str or float): The rotation angle in degrees or 'auto' to automatically calculate the angle.
+
+    Returns:
+        list: A list of dictionaries containing the inferred positions of missing PCR tubes, including their center coordinates ('x', 'y'), radius ('radius'), and a flag ('inferred') indicating they were inferred.
+    """
     if not pcr_tubes:
         return []
 
@@ -128,6 +169,18 @@ def infer_missing_tubes(pcr_tubes, image_shape, tubes_size=(16, 10), rotate='aut
 
 
 def detect_inner_circles(image, tubes, roi_size=30, radius=5):
+    """
+    Detects inner circles within the regions of interest (ROI) around the detected PCR tubes.
+
+    Args:
+        image (numpy.ndarray): The image as a numpy array.
+        tubes (list): A list of dictionaries containing the center coordinates ('x', 'y') and radius ('radius') of detected PCR tubes.
+        roi_size (int): The size of the region of interest around each tube.
+        radius (int): The radius of the inner circle to detect.
+
+    Returns:
+        list: A list of dictionaries containing the center coordinates ('x', 'y'), radius ('radius'), and method ('method') of detected inner circles.
+    """
     
     def create_circular_mask(h, w, center, radius):
         Y, X = np.ogrid[:h, :w]
@@ -207,6 +260,19 @@ def detect_inner_circles(image, tubes, roi_size=30, radius=5):
 
 
 def display_tubes(image_path, min_area, circularity_threshold, tubes_shape, rotate):
+    """
+    Displays the detected and inferred PCR tubes on the image.
+
+    Args:
+        image_path (str): Path to the image file.
+        min_area (int): Minimum area threshold for detecting contours.
+        circularity_threshold (float): Circularity threshold to filter contours.
+        tubes_shape (tuple): The expected size of the PCR tube grid (rows, columns).
+        rotate (str or float): The rotation angle in degrees or 'auto' to automatically calculate the angle.
+
+    Returns:
+        None: Displays the image with detected and inferred PCR tubes using matplotlib.
+    """
     min_area, circularity_threshold = min_area, circularity_threshold
     # center_x, center_y = rotation_center
     
