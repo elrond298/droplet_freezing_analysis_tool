@@ -153,6 +153,9 @@ class InteractivePlot(QMainWindow):
         self.plot_tube_detection_results()
         
         self.update_log_signal.connect(self.update_log)
+
+        # Initialize tubes size
+        self.tubes_size = (16, 10)
         
     def update_log(self, message, tab_number):
         if tab_number == 1:
@@ -216,6 +219,14 @@ class InteractivePlot(QMainWindow):
         self.refresh_button = QPushButton("Refresh")
         self.refresh_button.clicked.connect(self.plot_tube_detection_results)
         right_layout.addWidget(self.refresh_button)
+
+        # Tubes Size Input
+        self.tubes_size_input = QLineEdit()
+        self.tubes_size_input.setPlaceholderText("Enter tubes size (width, height)")
+        self.tubes_size_input.setText('16, 10')
+        self.tubes_size_input.textChanged.connect(self.update_tubes_size)
+        right_layout.addWidget(QLabel("Tubes Array Size:"))
+        right_layout.addWidget(self.tubes_size_input)
 
         # Rotate Input
         self.rotation_input = QLineEdit()
@@ -434,7 +445,7 @@ class InteractivePlot(QMainWindow):
                 self.log_text_edit.append(f"Using cropped region: {self.crop_region}")
 
             self.pcr_tubes, _ = locate_pcr_tubes(self.img, min_area, circularity_threshold)
-            self.inferred_tubes = infer_missing_tubes(self.pcr_tubes, self.img.shape, tubes_size=(16, 10), rotate=rotation)
+            self.inferred_tubes = infer_missing_tubes(self.pcr_tubes, self.img.shape, tubes_size=self.tubes_size, rotate=rotation)
             self.all_tubes = self.pcr_tubes + self.inferred_tubes
             self.inner_circles = detect_inner_circles(self.img, self.all_tubes)
             
@@ -533,6 +544,15 @@ class InteractivePlot(QMainWindow):
         self.circularity_label.setText(f"Circularity: {value/100:.2f}")
         self.schedule_update()
         print(f"Circularity updated to {value/100:.2f}")
+
+    def update_tubes_size(self, text):
+        try:
+            width, height = map(int, text.split(','))
+            self.tubes_size = (width, height)
+            self.schedule_update()
+            print(f"Tubes Size updated to {self.tubes_size}")
+        except ValueError:
+            self.log_text_edit.append("Invalid input for tubes size. Please enter two integers separated by a comma.")
 
     def save_inner_circles(self):
         default_filename = f"inner_circles_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
