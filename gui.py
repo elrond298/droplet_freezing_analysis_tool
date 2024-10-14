@@ -484,8 +484,8 @@ class InteractivePlot(QMainWindow):
 
         if event.button == 1:  # 左键点击
             # 找到最近的 PCR tube 和 inner circle
-            if self.pcr_tubes:
-                closest_tube = min(self.pcr_tubes, key=lambda t: ((t['x'] - x)**2 + (t['y'] - y)**2)**0.5)
+            if self.all_tubes:
+                closest_tube = min(self.all_tubes, key=lambda t: ((t['x'] - x)**2 + (t['y'] - y)**2)**0.5)
                 tube_distance = ((closest_tube['x'] - x)**2 + (closest_tube['y'] - y)**2)**0.5
             else:
                 closest_tube = None
@@ -498,11 +498,8 @@ class InteractivePlot(QMainWindow):
                 closest_circle = None
                 circle_distance = float('inf')
 
-            # 删除距离最近的对象
-            if tube_distance < circle_distance and closest_tube:
-                self.pcr_tubes.remove(closest_tube)
-                print(f"Removed tube at ({closest_tube['x']}, {closest_tube['y']})")
-            elif circle_distance < tube_distance and closest_circle:
+            # delete inner circles only
+            if closest_circle:
                 self.inner_circles.remove(closest_circle)
                 print(f"Removed inner circle at ({closest_circle['x']}, {closest_circle['y']})")
             else:
@@ -520,8 +517,9 @@ class InteractivePlot(QMainWindow):
         self.ax.clear()
         img_with_tubes = self.img.copy()
 
-        for tube in self.pcr_tubes:
-            cv2.circle(img_with_tubes, (tube['x'], tube['y']), tube['radius'], (0, 255, 0), 2)
+        for tube in self.all_tubes:
+            color = (0, 255, 0) if 'inferred' not in tube else (0, 0, 255)
+            cv2.circle(img_with_tubes, (tube['x'], tube['y']), tube['radius'], color, 2)
 
         for circle in self.inner_circles:
             cv2.circle(img_with_tubes, (circle['x'], circle['y']), circle['radius'], (0, 0, 0), 1)
