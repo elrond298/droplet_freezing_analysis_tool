@@ -1,6 +1,19 @@
-#+title: 使用说明
-#+LATEX_CLASS: ctexart
-#+LATEX_COMPILER: xelatex
+#+title: 冻滴实验软件使用说明
+#+options: toc:nil
+#+author:
+#+date:
+#+latex_compiler: xelatex
+#+latex_class: ctexart
+#+latex_class_options: [fontset=windows]
+#+latex_header: \usepackage{dirtree}
+#+latex_header: \usepackage{geometry}
+#+latex_header: \setmainfont{Times New Roman}
+#+latex_header: \setsansfont{Times New Roman}
+#+latex_header: \setCJKmainfont{SimSun}
+#+latex_header: \setCJKsansfont{SimSun}
+#+latex_header: \setCJKmonofont{SimSun}
+#+latex_header: \geometry{scale=0.8}
+#+cite_export: biblatex authoryear
 
 * 概述
 当过冷水滴冻结时，由于溶解在水中的氧气无法及时逸出，会形成不透明的冰晶，这会在图像上表现为液滴亮度的变化。通过识别亮度变化的时间点，可以确定液滴冻结的温度。为此，我们需要完成以下步骤：
