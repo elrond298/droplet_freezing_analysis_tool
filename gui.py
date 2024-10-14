@@ -239,9 +239,9 @@ class InteractivePlot(QMainWindow):
         # Min Area
         self.min_area_slider = QSlider(Qt.Horizontal)
         self.min_area_slider.setMinimum(10)
-        self.min_area_slider.setMaximum(500)
+        self.min_area_slider.setMaximum(1500)
         self.min_area_slider.setSingleStep(10)
-        self.min_area_slider.setValue(100)
+        self.min_area_slider.setValue(800)
         self.min_area_label = QLabel("Min Area: 100")
         self.min_area_slider.valueChanged.connect(self.update_min_area)
         right_layout.addWidget(self.min_area_label)
