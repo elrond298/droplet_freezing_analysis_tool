@@ -5,14 +5,15 @@ This software is intended to simplify the process of droplet freezing experiment
 
 ## Installation
 
+Follow one of these installation method below to create the environment.
+
 ### Using Conda
 
-To install the required packages using Conda, you can create a new environment and install the dependencies from the `requirements.txt` file. Run the following commands:
+To install the required packages using Conda, you can create a new environment from the `environment.yml` file. Run the following commands:
 
 ```bash
-conda create --name myenv python=3.8
-conda activate myenv
-pip install -r requirements.txt
+conda env create -f environment.yml
+conda activate inp
 ```
 
 ### Using Virtual Environment (venv)
