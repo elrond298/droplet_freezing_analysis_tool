@@ -155,7 +155,7 @@ class InteractivePlot(QMainWindow):
         self.update_log_signal.connect(self.update_log)
 
         # Initialize tubes size
-        self.tubes_size = (16, 10)
+        self.tubes_size = (10, 8)
         
     def update_log(self, message, tab_number):
         if tab_number == 1:
