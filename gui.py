@@ -223,7 +223,7 @@ class InteractivePlot(QMainWindow):
         # Tubes Size Input
         self.tubes_size_input = QLineEdit()
         self.tubes_size_input.setPlaceholderText("Enter tubes size (width, height)")
-        self.tubes_size_input.setText('16, 10')
+        self.tubes_size_input.setText('10, 8')
         self.tubes_size_input.textChanged.connect(self.update_tubes_size)
         right_layout.addWidget(QLabel("Tubes Array Size:"))
         right_layout.addWidget(self.tubes_size_input)
@@ -242,7 +242,7 @@ class InteractivePlot(QMainWindow):
         self.min_area_slider.setMaximum(1500)
         self.min_area_slider.setSingleStep(10)
         self.min_area_slider.setValue(800)
-        self.min_area_label = QLabel("Min Area: 100")
+        self.min_area_label = QLabel("Min Area: 800")
         self.min_area_slider.valueChanged.connect(self.update_min_area)
         right_layout.addWidget(self.min_area_label)
         right_layout.addWidget(self.min_area_slider)
