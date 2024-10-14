@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import ndimage
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from ipywidgets import interact, interactive, fixed, IntSlider, FloatSlider, Text
@@ -122,8 +123,7 @@ def infer_missing_tubes(pcr_tubes, image_shape, tubes_size=(16, 10), rotate='aut
     rotated_coords = np.array([rotate_point(center, (x, y), np.radians(-angle)) for x, y in coords])
 
     # Perform KMeans clustering separately for x and y coordinates of rotated points
-    print(tubes_size)
-    n_rows, n_cols = tubes_size  # Assuming 8x12 grid
+    n_rows, n_cols = tubes_size
     kmeans_x = KMeans(n_clusters=n_cols, random_state=0, n_init=10).fit(rotated_coords[:, 0].reshape(-1, 1))
     kmeans_y = KMeans(n_clusters=n_rows, random_state=0, n_init=10).fit(rotated_coords[:, 1].reshape(-1, 1))
 
@@ -134,8 +134,8 @@ def infer_missing_tubes(pcr_tubes, image_shape, tubes_size=(16, 10), rotate='aut
     # Calculate average radius
     avg_radius = np.mean([tube['radius'] for tube in pcr_tubes])
 
-    # Create a dictionary to store detected tubes
-    detected_tubes = {(tube['x'], tube['y']): tube for tube in pcr_tubes}
+    # Create a set to store detected tube coordinates for faster lookup
+    detected_tubes = {(int(tube['x']), int(tube['y'])) for tube in pcr_tubes}
 
     # Infer missing tubes
     inferred_tubes = []
@@ -143,16 +143,15 @@ def infer_missing_tubes(pcr_tubes, image_shape, tubes_size=(16, 10), rotate='aut
         for x in x_lines:
             # Rotate the point back to the original orientation
             original_x, original_y = rotate_point(center, (x, y), np.radians(angle))
-            closest_point = (int(original_x), int(original_y))
-            if closest_point in detected_tubes:
-                continue
-            else:
+            original_x, original_y = int(original_x), int(original_y)
+            
+            if (original_x, original_y) not in detected_tubes:
                 # Calculate the minimum distance to all detected tubes
                 min_distance = min(np.linalg.norm([tube['x'] - original_x, tube['y'] - original_y]) for tube in pcr_tubes)
                 if min_distance > avg_radius:
                     inferred_tubes.append({
-                        "x": int(original_x),
-                        "y": int(original_y),
+                        "x": original_x,
+                        "y": original_y,
                         "radius": int(avg_radius),
                         "inferred": True
                     })
@@ -178,75 +177,56 @@ def detect_inner_circles(image, tubes, roi_size=30, radius=5):
         Y, X = np.ogrid[:h, :w]
         dist_from_center = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
         mask = dist_from_center <= radius
-        return mask
+        return mask.astype(np.uint8)
 
-    def find_brightest_point(roi, mask):
+    def find_center_of_mass(roi, mask):
         # Apply mask to ROI
-        masked_roi = cv2.bitwise_and(roi, roi, mask=mask.astype(np.uint8))
+        masked_roi = cv2.bitwise_and(roi, roi, mask=mask)
         
-        # Apply 5x5 average filter
-        kernel = np.ones((radius*2, radius*2), np.float32) / (radius ** 2 * 4)
-        avg_roi = cv2.filter2D(masked_roi, -1, kernel)
-        
-        # Find the coordinates of the maximum average intensity pixel
-        y, x = np.unravel_index(np.argmax(avg_roi), avg_roi.shape)
-        return x, y
-    
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        # Calculate center of mass
+        cy, cx = ndimage.center_of_mass(masked_roi)
+        return int(cx), int(cy)
+
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image
+
     inner_circles = []
+    height, width = gray.shape[:2]
 
     for tube in tubes:
-        x, y, r = tube['x'], tube['y'], tube['radius']
+        x, y, r = int(tube['x']), int(tube['y']), int(tube['radius'])
         
         # Define ROI
-        roi_x = max(0, x - roi_size // 2)
-        roi_y = max(0, y - roi_size // 2)
+        roi_x = max(0, min(x - roi_size // 2, width - roi_size))
+        roi_y = max(0, min(y - roi_size // 2, height - roi_size))
         roi = gray[roi_y:roi_y+roi_size, roi_x:roi_x+roi_size]
         
+        # Check if ROI is valid
+        if roi.size == 0 or roi.shape[0] < 5 or roi.shape[1] < 5:
+            continue
+        
         # Create circular mask
-        mask = create_circular_mask(roi_size, roi_size, (roi_size//2, roi_size//2), r)
+        mask = create_circular_mask(roi.shape[0], roi.shape[1], 
+                                    (roi.shape[1]//2, roi.shape[0]//2), 
+                                    min(r, roi.shape[0]//2, roi.shape[1]//2))
         
-        # Detect circles in ROI
-        circles = cv2.HoughCircles(
-            roi, 
-            cv2.HOUGH_GRADIENT, 
-            dp=1, 
-            minDist=roi_size//2,
-            param1=50, 
-            param2=15, 
-            minRadius=5, 
-            maxRadius=r-2
-        )
+        # Create inner mask (70% of the original radius)
+        inner_radius = int(0.7 * min(r, roi.shape[0]//2, roi.shape[1]//2))
+        inner_mask = create_circular_mask(roi.shape[0], roi.shape[1], 
+                                          (roi.shape[1]//2, roi.shape[0]//2), 
+                                          inner_radius)
         
-        # if circles is not None:
-        #     circles = np.round(circles[0, :]).astype("int")
-        #     # Get the circle with maximum radius (assuming it's the most prominent inner circle)
-        #     max_circle = max(circles, key=lambda c: c[2])
-        #     cx, cy, cr = max_circle
-        #     inner_circles.append({
-        #         'x': roi_x + cx,
-        #         'y': roi_y + cy,
-        #         'radius': cr,
-        #         'method': 'hough'
-        #     })
-        # else:
-        #     # Find the brightest point within the circular mask using 5x5 average kernel
-        #     cx, cy = find_brightest_point(roi, mask)
-        #     inner_circles.append({
-        #         'x': roi_x + cx,
-        #         'y': roi_y + cy,
-        #         'radius': 3,  # Set a small default radius for visualization
-        #         'method': 'avg_brightness'
-        #     })
+        # Find the center of mass within the inner mask
+        cx, cy = find_center_of_mass(roi, inner_mask)
         
-        cx, cy = find_brightest_point(roi, mask)
         inner_circles.append({
             'x': roi_x + cx,
             'y': roi_y + cy,
-            'radius': radius,  # Set a small default radius for visualization
-            'method': 'avg_brightness'
+            'radius': radius,
+            'method': 'center_of_mass'
         })
-
 
     return inner_circles
 
