@@ -3,7 +3,7 @@ pandas
 matplotlib
 PyQt5
 ipywidgets
-opencv-python
+opencv-python-headless
 scikit-learn
 scipy
 Pillow
