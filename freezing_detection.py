@@ -32,7 +32,7 @@ def load_temperature_timeseries(temperature_recordings):
     for i in range(1, 9):
         new_df[f"RT_C_Avg({i})"] = df[f"RT_C_Avg({i})"]
     
-    new_df["temperature"] = df[[f"RT_C_Avg({i})" for i in range(1, 9)]].mean(axis=1)
+    new_df["temperature"] = df[[f"RT_C_Avg({i})" for i in range(1, 9) if i not in [7]]].mean(axis=1)
     
     new_df = new_df.reset_index(drop=True)
     
