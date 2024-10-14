@@ -1,0 +1,12 @@
+.aider*
+/100
+/1
+/200
+/110
+*tar
+__pycache__
+usage/*.bbl
+usage/*.dvi
+usage/*.tex
+usage/*.pdf
+.auctex-auto
