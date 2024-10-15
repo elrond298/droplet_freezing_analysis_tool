@@ -7,6 +7,7 @@
 #+latex_class_options: [fontset=windows]
 #+latex_header: \usepackage{dirtree}
 #+latex_header: \usepackage{geometry}
+#+latex_header: \usepackage{tcolorbox}
 #+latex_header: \setmainfont{Times New Roman}
 #+latex_header: \setsansfont{Times New Roman}
 #+latex_header: \setCJKmainfont{SimSun}
@@ -38,32 +39,41 @@
 2. 点击 "Select an Image"，通过文件选择窗口选中目标图片。我们假设在整个实验过程中液滴位置不会发生变化。通常选择液滴未冻结时的图片，因为此时亮度较高，更容易定位。
 3. 切换到 "Image Cropping" 标签页
 4. 点击 "Load Image" 加载图片，此时左侧画布上会显示该图片
-5. 使用鼠标点按并拖拽，可以使用矩形选择工具框选目标区域。区域可以调整位置和大小。
+5. 使用鼠标点按并拖拽，可以使用矩形选择工具框选目标区域。区域可以调整位置和大小。参考图 [[fig:cropping]] 。
    #+CAPTION: 选择裁剪区域
    #+NAME: fig:cropping
    [[file:fig1.png]]
 6. 完成后点击 "Apply Crop"，这将在 "Tube Locating" 标签页中应用对应的裁剪区域。
 
-参考图 [[fig:cropping]] 。
+#+begin_export latex
+\begin{tcolorbox}
+ tip: 可以分别选中每一个PCR板的区域分别进行识别，但是要注意 "Tube Array Size" 设置是否符合框选区域内的液滴数目
+\end{tcolorbox}
+#+end_export
 
 ** 液滴定位
 完成裁剪后，回到 "Tube Locating" 标签，如果没有意外的话，可以在这里看到程序成功标注出了各个PCR板的位置。各个大圈中有较小的圆圈，标记出进行亮度采样的区域，我们只关注这个小圈的位置。
-
+参考图 [[fig:locating]] 。
 #+CAPTION: 液滴定位结果
 #+NAME: fig:locating
 [[file:fig2.png]]
 
-参考图 [[fig:locating]] 。
 
-如果未能显示图片，可以尝试：
+如果未能显示图片，或者未能正确识别，可以尝试：
 1. 调节 "Min Area" & "Circularity" 两个数值。这两个数值控制了识别算法的阈值，有可能影响识别结果
-2. 手动将液滴位置写入文件中
+2. 调节 "Tubes Array Size", 用逗号分割的两个整数，分别指示出阵列的行数和列数。程序会按照这个数目尝试补全未能识别出的液滴位置，确保这个数值与实验设置对应。
+3. 调节 "Rotation": 默认auto会尝试用PCA分析PCR板的旋转角度，可能会失败，这时会出现图 [[fig:fail_pca]] 的状态，这时可以手动设置PCR板需要旋转的角度，正值为逆时针，负值为顺时针。
+4. 手动将液滴位置写入文件中
 
 如果液滴识别位置有错：
 1. 用鼠标左键点击错误的黑色圈，可以将其从液滴位置列表中移除
 2. 用鼠标右键点击图片，可以将点击位置加入液滴位置列表
 
 识别完成后，点击 "Save Inner Circles" 将液滴位置数据保存。
+
+#+CAPTION: 主成分分析失败的例子
+#+NAME: fig:fail_pca
+[[file:pca_fail.png]]
 
 * 冻结温度识别
 切换到 "Freezing Detection" 标签页，需要进行以下设置：
@@ -79,9 +89,9 @@
 
 参考图 [[fig:detection-settings]] 。
 
-完成后，左侧画布上会显示第一个液滴的亮度曲线，并标注出冻结温度。这时需要逐个检查每个液滴的冻结识别是否正确。可以通过点击 "Previous" 和 "Next" 按钮逐个遍历液滴，也可以在 "Go to tube" 中输入液滴位置。
+完成后，左侧画布上会显示第一个液滴的亮度曲线，并标注出冻结温度。这时需要逐个检查每个液滴的冻结识别是否正确。可以通过点击 "Previous" 和 "Next" 按钮逐个遍历液滴，也可以在 "Go to tube" 中输入液滴位置。如果认为液滴在整个过程中没有冻结，可以点击 "discard" 按钮，将这一个液滴的冻结温度设置为0，方便后续分析排除。
 
-冻结时，液滴亮度会剧烈变化，并且前后呈现出两个平台的状态。如果冻结识别不正确，可以使用鼠标点击并拖拽，选择冻结发生的温度区间，程序会在该区间内修正冻结温度识别。
+冻结时，液滴亮度会剧烈变化，并且前后呈现出两个平台的状态。如果冻结识别不正确，可以使用鼠标点击并拖拽，选择冻结发生的温度区间，程序会在该区间内修正冻结温度识别。参考图 [[fig:brightness-curve]] 和图 [[fig:correction]] 。
 
 #+CAPTION: 亮度曲线和冻结温度标注
 #+NAME: fig:brightness-curve
@@ -90,7 +100,5 @@
 #+CAPTION: 修正冻结温度识别
 #+NAME: fig:correction
 [[file:fig5.png]]
-
-参考图 [[fig:brightness-curve]] 和图 [[fig:correction]] 。
 
 检验完所有温度后，点击 "Save Freezing Temperatures" 导出液滴的冻结温度。
