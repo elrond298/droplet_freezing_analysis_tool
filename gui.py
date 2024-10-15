@@ -327,10 +327,13 @@ class InteractivePlot(QMainWindow):
         button_layout = QHBoxLayout()
         self.prev_button = QPushButton("Previous")
         self.next_button = QPushButton("Next")
+        self.discard_button = QPushButton("Discard")
         self.prev_button.clicked.connect(self.previous_tube)
         self.next_button.clicked.connect(self.next_tube)
+        self.discard_button.clicked.connect(self.discard_tube)
         button_layout.addWidget(self.prev_button)
         button_layout.addWidget(self.next_button)
+        button_layout.addWidget(self.discard_button)
         right_layout.addLayout(button_layout)
 
         # 输入框
@@ -706,6 +709,36 @@ class InteractivePlot(QMainWindow):
         if self.current_tube > 0:
             self.current_tube -= 1
             self.update_brightness_timeseries_plot()
+
+    def discard_tube(self):
+        """
+        Discard current tube, set the temperature to 0 C
+        """
+        bright_range = self.current_tube_brightness  # already a numpy array
+        time_range = self.current_tube_timestamps  # already a numpy array
+
+        # Find the index of the largest decrease
+        freezing_index = 0
+        freezing_temp = 0
+        freezing_brightness = bright_range[freezing_index]
+        freezing_timestamp = time_range[freezing_index]
+
+        # Update the freezing temperature for this tube
+        self.freezing_temperatures[self.current_tube] = {
+            'temperature': freezing_temp,
+            'timestamp': freezing_timestamp
+        }
+
+        # Remove old freezing point if it exists
+        if hasattr(self, 'freezing_point'):
+            self.freezing_point.remove()
+
+        # Plot new freezing point
+        self.freezing_point, = self.ax2.plot(freezing_temp, freezing_brightness, 'ro', markersize=10,
+                                            label=f"Freezing Point: {freezing_temp:.2f}°C")
+        self.ax2.legend()
+        self.canvas2.draw()
+        self.log_text_edit2.append(f"Updated freezing point for tube {self.current_tube}: {freezing_temp:.2f}°C at timestamp {freezing_timestamp}")
 
     def go_to_tube(self):
         try:
