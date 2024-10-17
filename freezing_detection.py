@@ -20,22 +20,36 @@ def load_temperature_timeseries(temperature_recordings):
                       'timestamp' is a datetime object.
                       'temperature' is the average temperature across multiple sensors.
     """
+    # Read the CSV file, skipping the specified rows
     df = pd.read_csv(temperature_recordings, skiprows=[0,2,3])
+
+    # Convert TIMESTAMP to datetime
     df["TIMESTAMP"] = pd.to_datetime(df["TIMESTAMP"])
-    
+
+    # Apply the cutoff timestamp
     TEMPERATURE_CUTOFF_TIMESTAMP = "2023-04-02 14:00:00"
     cutoff_timestamp = pd.to_datetime(TEMPERATURE_CUTOFF_TIMESTAMP)
     df = df[df["TIMESTAMP"] >= cutoff_timestamp]
 
+    # Create a new DataFrame with the timestamp column
     new_df = pd.DataFrame()
     new_df["timestamp"] = df["TIMESTAMP"]
+
+    # Add temperature columns, converting "NAN" to np.nan
     for i in range(1, 9):
-        new_df[f"RT_C_Avg({i})"] = df[f"RT_C_Avg({i})"]
-    
-    new_df["temperature"] = df[[f"RT_C_Avg({i})" for i in range(1, 9) if i not in [7]]].mean(axis=1)
-    
+        column = f"RT_C_Avg({i})"
+        new_df[column] = pd.to_numeric(df[column], errors='coerce')
+
+    # Calculate the mean temperature, excluding column 7
+    temperature_columns = [f"RT_C_Avg({i})" for i in range(1, 9) if i != 7]
+    new_df["temperature"] = new_df[temperature_columns].mean(axis=1)
+
+    # Drop rows with any NaN values
+    new_df = new_df.dropna()
+
+    # Reset the index
     new_df = new_df.reset_index(drop=True)
-    
+
     return new_df
 
 def parse_timestamp_from_filename(filename):
