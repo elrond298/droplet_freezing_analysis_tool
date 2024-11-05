@@ -925,6 +925,11 @@ class InteractivePlot(QMainWindow):
 
     def apply_rotation(self):
         try:
+            # Check if an image is loaded
+            if self.original_image is None:
+                self.log_text_edit.append("No image loaded. Please load an image first.")
+                return
+
             rotation_angle = float(self.rotation_input_crop.text())
 
             # Get image center
@@ -972,6 +977,8 @@ class InteractivePlot(QMainWindow):
 
         except ValueError:
             self.log_text_edit.append("Invalid rotation angle. Please enter a number.")
+        except Exception as e:
+            self.log_text_edit.append(f"Error during rotation: {str(e)}")
 
     def restore_original_image(self):
         if self.original_image is not None:
@@ -1004,13 +1011,21 @@ class InteractivePlot(QMainWindow):
         self.log_text_edit.append(f"Crop region set to: {self.crop_region}")
 
     def apply_crop(self):
-        if self.crop_region and hasattr(self, 'rotated_image') and self.rotated_image is not None:
+        try:
+            # Check if an image is loaded and crop region is selected
+            if self.rotated_image is None:
+                self.log_text_edit.append("No image loaded. Please load an image first.")
+                return
+
+            if self.crop_region is None:
+                self.log_text_edit.append("No crop region selected. Please select a region.")
+                return
+
             # Crop the rotated image
             x, y, w, h = self.crop_region
             cropped_img = self.rotated_image[y:y+h, x:x+w]
 
             # Prepare for tube detection by modifying the original workflow
-            # Instead of changing the sample image path, we'll pass the processed image directly
             self.processed_image = cropped_img
 
             # Update UI to show what was done
@@ -1029,8 +1044,9 @@ class InteractivePlot(QMainWindow):
             self.plot_tube_detection_results()
 
             self.log_text_edit.append("Crop and rotation applied to tube detection")
-        else:
-            self.log_text_edit.append("No crop region or rotated image selected")
+
+        except Exception as e:
+            self.log_text_edit.append(f"Error during crop: {str(e)}")
 
     def load_inner_circles(self):
         try:
