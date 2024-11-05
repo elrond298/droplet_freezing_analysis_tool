@@ -233,7 +233,7 @@ class InteractivePlot(QMainWindow):
         self.rotation_input.setPlaceholderText("Enter rotation value")
         self.rotation_input.setText('auto')
         self.rotation_input.textChanged.connect(self.schedule_update)
-        right_layout.addWidget(QLabel("Rotation:"))
+        right_layout.addWidget(QLabel("Rotation (+ for counter-clockwise):"))
         right_layout.addWidget(self.rotation_input)
 
         # Min Area
@@ -390,14 +390,38 @@ class InteractivePlot(QMainWindow):
         self.load_crop_image_button.clicked.connect(self.load_crop_image)
         control_layout.addWidget(self.load_crop_image_button)
 
+        # Add rotation input
+        rotation_layout = QHBoxLayout()
+        self.rotation_input_crop = QLineEdit()
+        self.rotation_input_crop.setPlaceholderText("Rotation angle (degrees)")
+        self.rotation_input_crop.setText('0')
+        rotation_layout.addWidget(QLabel("Rotation (+ for counter-clockwise):"))
+        rotation_layout.addWidget(self.rotation_input_crop)
+        control_layout.addLayout(rotation_layout)
+
+        # Add apply rotation button
+        self.apply_rotation_button = QPushButton("Apply Rotation")
+        self.apply_rotation_button.clicked.connect(self.apply_rotation)
+        control_layout.addWidget(self.apply_rotation_button)
+
         # Add apply crop button
         self.apply_crop_button = QPushButton("Apply Crop")
         self.apply_crop_button.clicked.connect(self.apply_crop)
         control_layout.addWidget(self.apply_crop_button)
 
+        # Add restore original image button
+        self.restore_image_button = QPushButton("Restore Original Image")
+        self.restore_image_button.clicked.connect(self.restore_original_image)
+        control_layout.addWidget(self.restore_image_button)
+
+        # Store original image
+        self.original_image = None
+        self.rotated_image = None
+
         # Add widgets to main layout
         tab3_layout.addWidget(self.canvas_crop, 2)
         tab3_layout.addWidget(control_widget, 1)
+
     
     def select_sample_image_path(self):
         file, _ = QFileDialog.getOpenFileName(self, "Select an Image")
@@ -432,31 +456,36 @@ class InteractivePlot(QMainWindow):
         try:
             min_area = self.min_area_slider.value()
             circularity_threshold = self.circularity_slider.value() / 100
-            image_path = self.sample_image_path
             rotation = self.rotation_input.text()
 
-            if not os.path.exists(image_path):
-                raise FileNotFoundError(f"Image file not found: {image_path}")
+            # Use the processed image if available, otherwise use the original sample image
+            if hasattr(self, 'processed_image'):
+                self.img = self.processed_image
+            else:
+                if not os.path.exists(self.sample_image_path):
+                    raise FileNotFoundError(f"Image file not found: {self.sample_image_path}")
+                self.img = cv2.imread(self.sample_image_path)
 
-            # Load the image
-            self.img = cv2.imread(image_path)
-
-            # Apply cropping if a region is set
-            if self.crop_region:
-                x, y, w, h = self.crop_region
-                self.img = self.img[y:y+h, x:x+w]
-                self.log_text_edit.append(f"Using cropped region: {self.crop_region}")
-
+            # Tube detection
             self.pcr_tubes, _ = locate_pcr_tubes(self.img, min_area, circularity_threshold)
-            self.inferred_tubes = infer_missing_tubes(self.pcr_tubes, self.img.shape, tubes_size=self.tubes_size, rotate=rotation)
+
+            # Prepare for further processing
+            self.inferred_tubes = infer_missing_tubes(
+                self.pcr_tubes,
+                self.original_image.shape,
+                tubes_size=self.tubes_size,
+                rotate=rotation
+            )
+
             self.all_tubes = self.pcr_tubes + self.inferred_tubes
             self.inner_circles = detect_inner_circles(self.img, self.all_tubes)
-            
+
+            # Visualize on the canvas
             img_with_tubes = self.img.copy()
             for tube, inner_circle in zip(self.all_tubes, self.inner_circles):
                 color = (0, 255, 0) if 'inferred' not in tube else (0, 0, 255)
                 cv2.circle(img_with_tubes, (tube['x'], tube['y']), tube['radius'], color, 2)
-                
+
                 if inner_circle:
                     cv2.circle(img_with_tubes, (inner_circle['x'], inner_circle['y']), inner_circle['radius'], (0, 0, 0), 1)
 
@@ -469,9 +498,9 @@ class InteractivePlot(QMainWindow):
 
         except Exception as e:
             error_msg = f"Error: {str(e)}\n\n{traceback.format_exc()}"
-            self.ax.text(0.5, 0.5, error_msg, 
-                         ha='center', va='center', wrap=True,
-                         bbox=dict(facecolor='red', alpha=0.2))
+            self.ax.text(0.5, 0.5, error_msg,
+                        ha='center', va='center', wrap=True,
+                        bbox=dict(facecolor='red', alpha=0.2))
             self.ax.set_title("An error occurred")
             self.ax.axis('off')
             print(error_msg)
@@ -483,38 +512,27 @@ class InteractivePlot(QMainWindow):
         if event.inaxes != self.ax:
             return
 
-        x, y = event.xdata, event.ydata
+        x, y = int(event.xdata), int(event.ydata)
 
-        if event.button == 1:  # 左键点击
-            # 找到最近的 PCR tube 和 inner circle
-            if self.all_tubes:
-                closest_tube = min(self.all_tubes, key=lambda t: ((t['x'] - x)**2 + (t['y'] - y)**2)**0.5)
-                tube_distance = ((closest_tube['x'] - x)**2 + (closest_tube['y'] - y)**2)**0.5
-            else:
-                closest_tube = None
-                tube_distance = float('inf')
-
+        if event.button == 1:  # Left click - remove point
+            # Find closest inner circle
             if self.inner_circles:
-                closest_circle = min(self.inner_circles, key=lambda c: ((c['x'] - x)**2 + (c['y'] - y)**2)**0.5)
+                closest_circle = min(self.inner_circles,
+                                    key=lambda c: ((c['x'] - x)**2 + (c['y'] - y)**2)**0.5)
                 circle_distance = ((closest_circle['x'] - x)**2 + (closest_circle['y'] - y)**2)**0.5
-            else:
-                closest_circle = None
-                circle_distance = float('inf')
 
-            # delete inner circles only
-            if closest_circle:
-                self.inner_circles.remove(closest_circle)
-                print(f"Removed inner circle at ({closest_circle['x']}, {closest_circle['y']})")
-            else:
-                print("No tube or circle close enough to remove")
-        elif event.button == 3:  # 右键点击
-            # 添加新的 inner circle
-            new_circle = {'x': int(x), 'y': int(y), 'radius': 5}  # 使用固定半径，你可以根据需要调整
+                # Remove if close enough
+                if circle_distance < 20:  # Adjust threshold as needed
+                    self.inner_circles.remove(closest_circle)
+                    print(f"Removed inner circle at ({closest_circle['x']}, {closest_circle['y']})")
+                    self.redraw_tube_detection_results()
+
+        elif event.button == 3:  # Right click - add point
+            # Add new inner circle
+            new_circle = {'x': x, 'y': y, 'radius': 5}
             self.inner_circles.append(new_circle)
-            print(f"Added new inner circle at ({new_circle['x']}, {new_circle['y']})")
-
-        # 重新绘制图表
-        self.redraw_tube_detection_results()
+            print(f"Added new inner circle at ({x}, {y})")
+            self.redraw_tube_detection_results()
 
     def redraw_tube_detection_results(self):
         self.ax.clear()
@@ -561,17 +579,40 @@ class InteractivePlot(QMainWindow):
 
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Inner Circles", default_filepath, "Pickle Files (*.pkl)")
         if file_path:
-            # Restore locations if a crop region was used
-            if self.crop_region:
-                x, y, _, _ = self.crop_region
-                restored_circles = []
-                for circle in self.inner_circles:
-                    restored_circle = circle.copy()
-                    restored_circle['x'] += x
-                    restored_circle['y'] += y
-                    restored_circles.append(restored_circle)
-            else:
-                restored_circles = self.inner_circles
+            # Restore locations relative to original image
+            restored_circles = []
+            for circle in self.inner_circles:
+                restored_circle = circle.copy()
+
+                # Step 1: Restore to rotated image coordinates
+                # If cropping was applied, add back the crop offsets
+                if hasattr(self, 'crop_region'):
+                    x_offset, y_offset, _, _ = self.crop_region
+                    restored_circle['x'] += x_offset
+                    restored_circle['y'] += y_offset
+
+                # Step 2: Rotate back to original image coordinates
+                if hasattr(self, 'rotation_params'):
+                    center = self.rotation_params['center']
+                    rotation_angle = self.rotation_params['angle']  # opencv: positive rotation means rotate counter-clockwise
+
+                    # Convert point relative to center
+                    x_rel = restored_circle['x'] - center[0]
+                    y_rel = restored_circle['y'] - center[1]
+
+                    # Rotate back (negative angle)
+                    cos_theta = np.cos(np.deg2rad(rotation_angle))  # just use the selected value, to do a reverse rotation  
+                    sin_theta = np.sin(np.deg2rad(rotation_angle))
+
+                    # Apply inverse rotation
+                    x_restored = x_rel * cos_theta - y_rel * sin_theta
+                    y_restored = x_rel * sin_theta + y_rel * cos_theta
+
+                    # Restore absolute coordinates
+                    restored_circle['x'] = int(x_restored + center[0])
+                    restored_circle['y'] = int(y_restored + center[1])
+
+                restored_circles.append(restored_circle)
 
             with open(file_path, 'wb') as f:
                 pickle.dump(restored_circles, f)
@@ -862,14 +903,15 @@ class InteractivePlot(QMainWindow):
 
     def load_crop_image(self):
         self.ax_crop.clear()
-        img = cv2.imread(self.sample_image_path)
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        self.original_image = cv2.imread(self.sample_image_path)
+        self.rotated_image = self.original_image.copy()
+        img_rgb = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
         self.ax_crop.imshow(img_rgb)
         self.ax_crop.axis('off')
-        
+
         if self.crop_selector is not None:
             self.crop_selector.set_active(False)
-        
+
         self.crop_selector = RectangleSelector(
             self.ax_crop, self.on_crop_select,
             useblit=True,
@@ -878,8 +920,82 @@ class InteractivePlot(QMainWindow):
             spancoords='pixels',
             interactive=True
         )
-        
+
         self.canvas_crop.draw()
+
+    def apply_rotation(self):
+        try:
+            rotation_angle = float(self.rotation_input_crop.text())
+
+            # Get image center
+            height, width = self.original_image.shape[:2]
+            center = (width / 2, height / 2)
+
+            # Create rotation matrix
+            rotation_matrix = cv2.getRotationMatrix2D(center, rotation_angle, 1.0)  # A positive rotation_angle rotates the image counter-clockwise
+
+            # Perform rotation
+            self.rotated_image = cv2.warpAffine(
+                self.original_image,
+                rotation_matrix,
+                (width, height),
+                flags=cv2.INTER_LINEAR
+            )
+
+            # Display rotated image
+            self.ax_crop.clear()
+            img_rgb = cv2.cvtColor(self.rotated_image, cv2.COLOR_BGR2RGB)
+            self.ax_crop.imshow(img_rgb)
+            self.ax_crop.axis('off')
+
+            # Reinitialize crop selector
+            if self.crop_selector is not None:
+                self.crop_selector.set_active(False)
+
+            self.crop_selector = RectangleSelector(
+                self.ax_crop, self.on_crop_select,
+                useblit=True,
+                button=[1, 3],  # Left and right mouse buttons
+                minspanx=5, minspany=5,
+                spancoords='pixels',
+                interactive=True
+            )
+
+            self.canvas_crop.draw()
+
+            # Store rotation parameters for later use
+            self.rotation_params = {
+                'angle': rotation_angle,
+                'center': center,
+                'matrix': rotation_matrix
+            }
+
+        except ValueError:
+            self.log_text_edit.append("Invalid rotation angle. Please enter a number.")
+
+    def restore_original_image(self):
+        if self.original_image is not None:
+            self.rotated_image = self.original_image.copy()
+            self.ax_crop.clear()
+            img_rgb = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
+            self.ax_crop.imshow(img_rgb)
+            self.ax_crop.axis('off')
+
+            # Reinitialize crop selector
+            if self.crop_selector is not None:
+                self.crop_selector.set_active(False)
+
+            self.crop_selector = RectangleSelector(
+                self.ax_crop, self.on_crop_select,
+                useblit=True,
+                button=[1, 3],  # Left and right mouse buttons
+                minspanx=5, minspany=5,
+                spancoords='pixels',
+                interactive=True
+            )
+
+            self.canvas_crop.draw()
+            self.crop_region = None
 
     def on_crop_select(self, eclick, erelease):
         x1, y1 = int(eclick.xdata), int(eclick.ydata)
@@ -888,12 +1004,34 @@ class InteractivePlot(QMainWindow):
         self.log_text_edit.append(f"Crop region set to: {self.crop_region}")
 
     def apply_crop(self):
-        if self.crop_region:
+        if self.crop_region and hasattr(self, 'rotated_image') and self.rotated_image is not None:
+            # Crop the rotated image
+            x, y, w, h = self.crop_region
+            cropped_img = self.rotated_image[y:y+h, x:x+w]
+
+            # Prepare for tube detection by modifying the original workflow
+            # Instead of changing the sample image path, we'll pass the processed image directly
+            self.processed_image = cropped_img
+
+            # Update UI to show what was done
+            self.log_text_edit.append(f"Crop region: {self.crop_region}")
+            self.log_text_edit.append(f"Cropped image size: {cropped_img.shape[:2]}")
+
+            # If rotation was applied, store the rotation parameters
+            if hasattr(self, 'rotation_params'):
+                rotation_angle = self.rotation_params['angle']
+                self.log_text_edit.append(f"Rotation angle: {rotation_angle} degrees")
+
+            # Switch to Tube Locating tab
+            self.tab_widget.setCurrentIndex(0)
+
+            # Run tube detection with the processed image
             self.plot_tube_detection_results()
-            self.log_text_edit.append("Crop applied to tube detection")
+
+            self.log_text_edit.append("Crop and rotation applied to tube detection")
         else:
-            self.log_text_edit.append("No crop region selected")
-            
+            self.log_text_edit.append("No crop region or rotated image selected")
+
     def load_inner_circles(self):
         try:
             with open(self.tube_location_file, 'rb') as f:
