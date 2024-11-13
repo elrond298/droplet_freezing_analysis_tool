@@ -161,72 +161,133 @@ def infer_missing_tubes(pcr_tubes, image_shape, tubes_size=(16, 10), rotate='aut
 
 def detect_inner_circles(image, tubes, roi_size=30, radius=10):
     """
-    Detects inner circles within the regions of interest (ROI) around the detected PCR tubes.
+    Detects PCR buttons as the brightest circular regions within tubes,
+    falling back to brightest point if circle detection fails.
 
     Args:
-        image (numpy.ndarray): The image as a numpy array.
+        image (numpy.ndarray): The input image as a numpy array.
         tubes (list): A list of dictionaries containing the center coordinates ('x', 'y') and radius ('radius') of detected PCR tubes.
-        roi_size (int): The size of the region of interest around each tube.
-        radius (int): The radius of the inner circle to detect.
+        roi_size (int): The size of the Region of Interest (ROI) around each tube.
+        radius (int): The expected radius of the inner circle.
 
     Returns:
-        list: A list of dictionaries containing the center coordinates ('x', 'y'), radius ('radius'), and method ('method') of detected inner circles.
+        list: A list of dictionaries containing the center coordinates ('x', 'y') and radius ('radius') of the detected inner circles, along with the method used ('brightest_circle' or 'brightest_point').
     """
-    
-    def create_circular_mask(h, w, center, radius):
-        Y, X = np.ogrid[:h, :w]
-        dist_from_center = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
-        mask = dist_from_center <= radius
-        return mask.astype(np.uint8)
 
-    def find_center_of_mass(roi, mask):
-        # Apply mask to ROI
-        masked_roi = cv2.bitwise_and(roi, roi, mask=mask)
-        
-        # Calculate center of mass
-        cy, cx = ndimage.center_of_mass(masked_roi)
-        return int(cx), int(cy)
+    def find_brightest_point(roi, mask=None):
+        # Apply Gaussian blur to reduce noise
+        blurred = cv2.GaussianBlur(roi, (5,5), 0)
+        if mask is not None:
+            blurred = cv2.bitwise_and(blurred, blurred, mask=mask)
 
+        # Find location of maximum intensity
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(blurred)
+        return max_loc[0], max_loc[1], 'brightest_point'
+
+    def find_brightest_circle(roi, expected_radius=5):
+        # Apply Gaussian blur to reduce noise
+        blurred = cv2.GaussianBlur(roi, (5,5), 0)
+
+        # Create a mask for searching (exclude edges)
+        mask = np.ones_like(roi, dtype=np.uint8)
+        border = 3
+        mask[0:border, :] = 0
+        mask[-border:, :] = 0
+        mask[:, 0:border] = 0
+        mask[:, -border:] = 0
+
+        # Find local maxima (brightest points)
+        max_val = np.max(blurred[mask == 1])
+        min_val = np.min(blurred[mask == 1])
+
+        # Threshold to isolate bright regions
+        threshold = max_val - (max_val - min_val) * 0.3
+        bright_regions = (blurred >= threshold).astype(np.uint8) * mask
+
+        # Find connected components
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(bright_regions)
+
+        if num_labels < 2:  # If no bright regions found, fall back to brightest point
+            return find_brightest_point(roi, mask)
+
+        # Find the best bright region
+        best_score = float('-inf')
+        best_x, best_y = None, None
+
+        for i in range(1, num_labels):
+            area = stats[i, cv2.CC_STAT_AREA]
+            x = int(centroids[i][0])
+            y = int(centroids[i][1])
+
+            # Skip if area is too small or too large
+            if area < np.pi * (expected_radius/2)**2 or area > np.pi * (expected_radius*2)**2:
+                continue
+
+            # Calculate average intensity in this region
+            region_mask = (labels == i).astype(np.uint8)
+            avg_intensity = np.mean(blurred[region_mask == 1])
+
+            # Calculate circularity
+            contours, _ = cv2.findContours(region_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if len(contours) > 0:
+                perimeter = cv2.arcLength(contours[0], True)
+                if perimeter > 0:
+                    circularity = 4 * np.pi * area / (perimeter * perimeter)
+                else:
+                    continue
+            else:
+                continue
+
+            # Score based on brightness, area similarity to expected, and circularity
+            area_score = 1 - abs(area - np.pi * expected_radius**2) / (np.pi * expected_radius**2)
+            brightness_score = avg_intensity / 255
+            total_score = brightness_score + area_score * 0.3 + circularity * 0.3
+
+            if total_score > best_score:
+                best_score = total_score
+                best_x, best_y = x, y
+
+        if best_x is None or best_y is None:
+            return find_brightest_point(roi, mask)
+
+        return best_x, best_y, 'brightest_circle'
+
+    # Convert image to grayscale if needed
     if len(image.shape) == 3:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     else:
-        gray = image
+        gray = image.copy()
 
     inner_circles = []
     height, width = gray.shape[:2]
 
     for tube in tubes:
         x, y, r = int(tube['x']), int(tube['y']), int(tube['radius'])
-        
-        # Define ROI
-        roi_x = max(0, min(x - roi_size // 2, width - roi_size))
-        roi_y = max(0, min(y - roi_size // 2, height - roi_size))
-        roi = gray[roi_y:roi_y+roi_size, roi_x:roi_x+roi_size]
-        
+
+        # Define ROI boundaries
+        roi_size_actual = int(roi_size * 1.2)
+        roi_x = max(0, x - roi_size_actual//2)
+        roi_y = max(0, y - roi_size_actual//2)
+        roi_right = min(width, roi_x + roi_size_actual)
+        roi_bottom = min(height, roi_y + roi_size_actual)
+
+        # Extract ROI
+        roi = gray[roi_y:roi_bottom, roi_x:roi_right]
+
         # Check if ROI is valid
         if roi.size == 0 or roi.shape[0] < 5 or roi.shape[1] < 5:
             continue
-        
-        # Create circular mask
-        mask = create_circular_mask(roi.shape[0], roi.shape[1], 
-                                    (roi.shape[1]//2, roi.shape[0]//2), 
-                                    min(r, roi.shape[0]//2, roi.shape[1]//2))
-        
-        # Create inner mask (70% of the original radius)
-        inner_radius = int(0.7 * min(r, roi.shape[0]//2, roi.shape[1]//2))
-        inner_mask = create_circular_mask(roi.shape[0], roi.shape[1], 
-                                          (roi.shape[1]//2, roi.shape[0]//2), 
-                                          inner_radius)
-        
-        # Find the center of mass within the inner mask
-        cx, cy = find_center_of_mass(roi, inner_mask)
-        
-        inner_circles.append({
-            'x': roi_x + cx,
-            'y': roi_y + cy,
-            'radius': radius,
-            'method': 'center_of_mass'
-        })
+
+        # Find brightest circle center or fallback to brightest point
+        cx, cy, method = find_brightest_circle(roi)
+
+        if cx is not None and cy is not None:
+            inner_circles.append({
+                'x': roi_x + cx,
+                'y': roi_y + cy,
+                'radius': radius,
+                'method': method
+            })
 
     return inner_circles
 
