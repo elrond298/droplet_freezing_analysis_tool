@@ -159,7 +159,7 @@ def infer_missing_tubes(pcr_tubes, image_shape, tubes_size=(16, 10), rotate='aut
     return inferred_tubes
 
 
-def detect_inner_circles(image, tubes, roi_size=30, radius=5):
+def detect_inner_circles(image, tubes, roi_size=30, radius=10):
     """
     Detects inner circles within the regions of interest (ROI) around the detected PCR tubes.
 

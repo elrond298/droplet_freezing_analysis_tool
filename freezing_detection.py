@@ -107,7 +107,7 @@ def process_image(args):
     result = {timestamp: {}}
     for i, location in enumerate(tube_locations):
         x, y = int(location['x']), int(location['y'])
-        box_size = 3
+        box_size = 10
         
         y_start = max(0, y - box_size)
         y_end = min(height, y + box_size + 1)

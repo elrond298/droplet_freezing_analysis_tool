@@ -529,7 +529,7 @@ class InteractivePlot(QMainWindow):
 
         elif event.button == 3:  # Right click - add point
             # Add new inner circle
-            new_circle = {'x': x, 'y': y, 'radius': 5}
+            new_circle = {'x': x, 'y': y, 'radius': 10}
             self.inner_circles.append(new_circle)
             print(f"Added new inner circle at ({x}, {y})")
             self.redraw_tube_detection_results()
