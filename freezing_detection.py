@@ -69,7 +69,7 @@ def parse_timestamp_from_filename(filename):
     except ValueError:
         return None
 
-def process_image(args):
+def process_image(args, calculate_overall_brightness=True):
     """
     Processes a single image to calculate the average brightness around specified tube locations.
 
@@ -79,10 +79,12 @@ def process_image(args):
             tube_locations (list): List of dictionaries containing 'x' and 'y' coordinates of tube locations.
             zero_t_timestamp (datetime.datetime): Timestamp to filter images taken before this time.
             use_filename_timestamp (bool): Whether to use the filename timestamp or file modification time.
+        calculate_overall_brightness (bool): Whether to calculate the overall average brightness of the image.
 
     Returns:
         dict: A dictionary with timestamps as keys and nested dictionaries as values.
               Each nested dictionary contains tube indices as keys and average brightness values as values.
+              If calculate_overall_brightness is True, it also includes an 'overall' key with the overall average brightness.
               Returns None if the timestamp is invalid or before the zero_t_timestamp.
     """
     file_path, tube_locations, zero_t_timestamp, use_filename_timestamp = args
@@ -105,6 +107,10 @@ def process_image(args):
     height, width = image_array.shape
 
     result = {timestamp: {}}
+    if calculate_overall_brightness:
+        overall_average_brightness = np.mean(image_array)
+        result[timestamp]['overall'] = overall_average_brightness
+
     for i, location in enumerate(tube_locations):
         x, y = int(location['x']), int(location['y'])
         box_size = 10
@@ -116,6 +122,8 @@ def process_image(args):
         
         box = image_array[y_start:y_end, x_start:x_end]
         average_brightness = np.mean(box)
+        if calculate_overall_brightness:
+            average_brightness -= result[timestamp]['overall']
         result[timestamp][i] = average_brightness
 
     return result
