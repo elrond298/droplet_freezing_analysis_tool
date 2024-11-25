@@ -69,7 +69,7 @@ def parse_timestamp_from_filename(filename):
     except ValueError:
         return None
 
-def process_image(args, calculate_overall_brightness=True):
+def process_image(args, calculate_overall_brightness=False):
     """
     Processes a single image to calculate the average brightness around specified tube locations.
 
@@ -79,7 +79,8 @@ def process_image(args, calculate_overall_brightness=True):
             tube_locations (list): List of dictionaries containing 'x' and 'y' coordinates of tube locations.
             zero_t_timestamp (datetime.datetime): Timestamp to filter images taken before this time.
             use_filename_timestamp (bool): Whether to use the filename timestamp or file modification time.
-        calculate_overall_brightness (bool): Whether to calculate the overall average brightness of the image.
+            calculate_overall_brightness (bool): Whether to calculate the overall average brightness of the image.
+                This is disabled as default, due to the automatical adjustment of camera will lead to unexpected value change when freezing occurs
 
     Returns:
         dict: A dictionary with timestamps as keys and nested dictionaries as values.
