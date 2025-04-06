@@ -772,7 +772,10 @@ class InteractivePlot(QMainWindow):
 
         # Remove old freezing point if it exists
         if hasattr(self, 'freezing_point'):
-            self.freezing_point.remove()
+            # self.freezing_point.remove()
+            # Note @2025-04-06 : NotImplementedError from matplotlib artist.py. Try another way to delete it.
+            self.freezing_point.set_data([], [])  # 清空数据
+            self.freezing_point.set_label("")
 
         # Plot new freezing point
         self.freezing_point, = self.ax2.plot(freezing_temp, freezing_brightness, 'ro', markersize=10,
@@ -889,7 +892,10 @@ class InteractivePlot(QMainWindow):
 
         # Remove old freezing point if it exists
         if hasattr(self, 'freezing_point'):
-            self.freezing_point.remove()
+            # self.freezing_point.remove()
+            # Note @2025-04-06 : NotImplementedError from matplotlib artist.py. Try another way to delete it.
+            self.freezing_point.set_data([], [])  # 清空数据
+            self.freezing_point.set_label("")
         
         # Plot new freezing point
         self.freezing_point, = self.ax2.plot(freezing_temp, freezing_brightness, 'ro', markersize=10, 
