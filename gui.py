@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                              QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox, QFormLayout,
                              QSizePolicy, QScrollArea, QProgressBar)
 from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal, QThread, QRectF
-from PyQt6.QtGui import QPixmap, QPainter, QPen, QTextCursor
+from PyQt6.QtGui import QPixmap, QPainter, QPen, QTextCursor, QKeySequence, QShortcut
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
@@ -133,10 +133,14 @@ class InteractivePlot(QMainWindow):
         LOG_LEVEL_ERROR: {"label": "ERROR", "badge": "#c0392b", "text": "#7b241c"},
     }
     SELECTION_CACHE_FILENAME = ".gui_selection_cache.json"
+    DEFAULT_FONT_SIZE = 10
+    MIN_FONT_SIZE = 8
+    MAX_FONT_SIZE = 24
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Droplet Freezing Assay Offline Analysis')
+        self.ui_font_size = self.get_default_font_size()
         self.configure_window_for_screen()
         self.apply_styles()
         self.selection_cache_path = os.path.join(
@@ -162,14 +166,18 @@ class InteractivePlot(QMainWindow):
         self.tab1 = QWidget()
         self.tab2 = QWidget()
         self.tab3 = QWidget()
+        self.tab4 = QWidget()
         self.tab_widget.addTab(self.tab3, "1. Prepare Image")
         self.tab_widget.addTab(self.tab1, "2. Locate Tubes")
         self.tab_widget.addTab(self.tab2, "3. Analyze Freezing")
+        self.tab_widget.addTab(self.tab4, "4. Settings")
 
         # Set up tab layouts
         self.setup_tube_locating_tab()
         self.setup_freezing_detection_tab()
         self.setup_image_cropping_tab()
+        self.setup_settings_tab()
+        self.configure_shortcuts()
 
         # 初始化更新定时器
         self.update_timer = QTimer()
@@ -190,6 +198,113 @@ class InteractivePlot(QMainWindow):
         self.plot_tube_detection_results()
         
         self.update_log_signal.connect(self.update_log)
+
+    def get_default_font_size(self):
+        app = QApplication.instance()
+        if app is not None:
+            point_size = app.font().pointSize()
+            if point_size > 0:
+                return point_size
+        return self.DEFAULT_FONT_SIZE
+
+    def create_display_controls(self):
+        display_group = QGroupBox("Display")
+        layout = QHBoxLayout(display_group)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(10)
+
+        label = QLabel("Font size:")
+        layout.addWidget(label)
+
+        self.font_size_spinbox = QSpinBox()
+        self.font_size_spinbox.setRange(self.MIN_FONT_SIZE, self.MAX_FONT_SIZE)
+        self.font_size_spinbox.setValue(self.ui_font_size)
+        self.font_size_spinbox.setSuffix(" pt")
+        self.font_size_spinbox.setToolTip("Adjust the UI font size for all controls.")
+        self.font_size_spinbox.valueChanged.connect(self.set_ui_font_size)
+        layout.addWidget(self.font_size_spinbox)
+        layout.addStretch(1)
+
+        return display_group
+
+    def create_shortcuts_summary_group(self):
+        shortcuts_group = QGroupBox("Keyboard Shortcuts")
+        layout = QVBoxLayout(shortcuts_group)
+        layout.setSpacing(8)
+
+        shortcuts = (
+            "Ctrl+=: Increase font size",
+            "Ctrl+-: Decrease font size",
+            "Ctrl+0: Reset font size",
+            "Ctrl+,: Open Settings tab",
+            "Ctrl+1: Open Prepare Image tab",
+            "Ctrl+2: Open Locate Tubes tab",
+            "Ctrl+3: Open Analyze Freezing tab",
+            "Ctrl+4: Open Settings tab",
+        )
+
+        for shortcut_text in shortcuts:
+            shortcut_label = QLabel(shortcut_text)
+            shortcut_label.setWordWrap(True)
+            layout.addWidget(shortcut_label)
+
+        return shortcuts_group
+
+    def configure_shortcuts(self):
+        self.shortcuts = []
+
+        shortcut_definitions = (
+            ("Ctrl+=", self.increase_ui_font_size),
+            ("Ctrl++", self.increase_ui_font_size),
+            ("Ctrl+-", self.decrease_ui_font_size),
+            ("Ctrl+0", self.reset_ui_font_size),
+            ("Ctrl+,", self.open_settings_tab),
+            ("Ctrl+1", lambda: self.select_tab_by_index(0)),
+            ("Ctrl+2", lambda: self.select_tab_by_index(1)),
+            ("Ctrl+3", lambda: self.select_tab_by_index(2)),
+            ("Ctrl+4", lambda: self.select_tab_by_index(3)),
+        )
+
+        for key_sequence, callback in shortcut_definitions:
+            shortcut = QShortcut(QKeySequence(key_sequence), self)
+            shortcut.activated.connect(callback)
+            self.shortcuts.append(shortcut)
+
+    def increase_ui_font_size(self):
+        self.set_ui_font_size(self.ui_font_size + 1)
+
+    def decrease_ui_font_size(self):
+        self.set_ui_font_size(self.ui_font_size - 1)
+
+    def reset_ui_font_size(self):
+        self.set_ui_font_size(self.get_default_font_size())
+
+    def open_settings_tab(self):
+        self.select_tab_by_index(3)
+
+    def select_tab_by_index(self, index):
+        if 0 <= index < self.tab_widget.count():
+            self.tab_widget.setCurrentIndex(index)
+
+    def set_ui_font_size(self, font_size, persist=True):
+        font_size = max(self.MIN_FONT_SIZE, min(self.MAX_FONT_SIZE, int(font_size)))
+        self.ui_font_size = font_size
+
+        app = QApplication.instance()
+        if app is not None:
+            app_font = app.font()
+            app_font.setPointSize(font_size)
+            app.setFont(app_font)
+
+        if hasattr(self, 'font_size_spinbox') and self.font_size_spinbox.value() != font_size:
+            self.font_size_spinbox.blockSignals(True)
+            self.font_size_spinbox.setValue(font_size)
+            self.font_size_spinbox.blockSignals(False)
+
+        self.apply_styles()
+
+        if persist and hasattr(self, 'selection_cache_path'):
+            self.save_selection_cache()
 
     def configure_window_for_screen(self):
         screen = QApplication.primaryScreen()
@@ -279,28 +394,33 @@ class InteractivePlot(QMainWindow):
         self.append_log_message(message, tab_number, level)
 
     def apply_styles(self):
-        self.setStyleSheet("""
-            QMainWindow {
+        base_font_size = self.ui_font_size
+        tab_header_title_size = base_font_size + 6
+        self.setStyleSheet(f"""
+            QWidget {{
+                font-size: {base_font_size}pt;
+            }}
+            QMainWindow {{
                 background: #f4f7fb;
-            }
-            QTabWidget::pane {
+            }}
+            QTabWidget::pane {{
                 border: 1px solid #d6dde8;
                 background: #ffffff;
                 top: -1px;
-            }
-            QTabBar::tab {
+            }}
+            QTabBar::tab {{
                 background: #e8eef6;
                 border: 1px solid #d6dde8;
                 min-width: 180px;
                 padding: 10px 18px;
                 margin-right: 4px;
                 font-weight: 600;
-            }
-            QTabBar::tab:selected {
+            }}
+            QTabBar::tab:selected {{
                 background: #ffffff;
                 color: #17324d;
-            }
-            QGroupBox {
+            }}
+            QGroupBox {{
                 border: 1px solid #d6dde8;
                 border-radius: 8px;
                 margin-top: 12px;
@@ -308,13 +428,13 @@ class InteractivePlot(QMainWindow):
                 font-weight: 600;
                 color: #17324d;
                 background: #fbfdff;
-            }
-            QGroupBox::title {
+            }}
+            QGroupBox::title {{
                 subcontrol-origin: margin;
                 left: 10px;
                 padding: 0 4px;
-            }
-            QPushButton {
+            }}
+            QPushButton {{
                 background: #1f6fb2;
                 color: white;
                 border: none;
@@ -322,39 +442,39 @@ class InteractivePlot(QMainWindow):
                 padding: 8px 12px;
                 min-height: 22px;
                 font-weight: 600;
-            }
-            QPushButton:hover {
+            }}
+            QPushButton:hover {{
                 background: #195d95;
-            }
-            QPushButton:disabled {
+            }}
+            QPushButton:disabled {{
                 background: #b8c5d3;
                 color: #eef3f8;
-            }
-            QLineEdit, QTextEdit {
+            }}
+            QLineEdit, QTextEdit {{
                 border: 1px solid #c9d5e2;
                 border-radius: 6px;
                 padding: 6px;
                 background: #ffffff;
-            }
-            QLabel#tabHeaderTitle {
-                font-size: 18px;
+            }}
+            QLabel#tabHeaderTitle {{
+                font-size: {tab_header_title_size}pt;
                 font-weight: 700;
                 color: #17324d;
-            }
-            QLabel#tabHeaderDescription {
+            }}
+            QLabel#tabHeaderDescription {{
                 color: #516579;
                 line-height: 1.4;
-            }
-            QLabel#statusLabel {
+            }}
+            QLabel#statusLabel {{
                 color: #2c4f6f;
                 background: #eef5fb;
                 border: 1px solid #d6e4f2;
                 border-radius: 6px;
                 padding: 8px 10px;
-            }
-            QLabel#hintLabel {
+            }}
+            QLabel#hintLabel {{
                 color: #516579;
-            }
+            }}
         """)
 
     def create_tab_header(self, title, description):
@@ -466,6 +586,7 @@ class InteractivePlot(QMainWindow):
             'image_directory': self.image_directory,
             'temperature_recording_file': self.temperature_recording_file,
             'tube_location_file': self.tube_location_file,
+            'ui_font_size': self.ui_font_size,
         }
         temp_cache_path = f"{self.selection_cache_path}.tmp"
 
@@ -498,6 +619,10 @@ class InteractivePlot(QMainWindow):
         tube_location_file = cached_data.get('tube_location_file')
         if isinstance(tube_location_file, str) and os.path.isfile(tube_location_file):
             self.tube_location_file = tube_location_file
+
+        ui_font_size = cached_data.get('ui_font_size')
+        if isinstance(ui_font_size, int):
+            self.set_ui_font_size(ui_font_size, persist=False)
 
         self.refresh_image_path_labels()
         self.refresh_analysis_input_labels()
@@ -871,6 +996,27 @@ class InteractivePlot(QMainWindow):
         # Add widgets to main layout
         tab3_layout.addWidget(left_widget, 5)
         tab3_layout.addWidget(control_scroll_area, 3)
+
+    def setup_settings_tab(self):
+        tab4_layout = QHBoxLayout(self.tab4)
+        tab4_layout.setContentsMargins(12, 12, 12, 12)
+        tab4_layout.setSpacing(12)
+
+        settings_widget = QWidget()
+        settings_layout = QVBoxLayout(settings_widget)
+        settings_layout.setSpacing(12)
+
+        settings_layout.addWidget(self.create_tab_header(
+            "Adjust display and shortcuts",
+            "Keep the analysis tabs uncluttered while still making interface size and keyboard navigation easy to access."
+        ))
+
+        settings_layout.addWidget(self.create_display_controls())
+        settings_layout.addWidget(self.create_shortcuts_summary_group())
+        settings_layout.addStretch(1)
+
+        settings_scroll_area = self.create_scrollable_panel(settings_widget)
+        tab4_layout.addWidget(settings_scroll_area)
 
     
     def select_sample_image_path(self):
