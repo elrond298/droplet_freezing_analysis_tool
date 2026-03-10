@@ -1,5 +1,6 @@
 import sys
 import os
+import html
 import numpy as np
 import pandas as pd
 import pickle
@@ -9,7 +10,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                              QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox, QFormLayout,
                              QSizePolicy, QScrollArea)
 from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSignal, QThread, QRectF
-from PyQt5.QtGui import QPixmap, QPainter, QPen
+from PyQt5.QtGui import QPixmap, QPainter, QPen, QTextCursor
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
@@ -29,10 +30,11 @@ class StreamToTextEdit(io.StringIO):
     with the text to be written and the tab number. This allows the text to be displayed
     in the appropriate log text edit widget within the specified tab.
     """
-    def __init__(self, signal, tab_number):
+    def __init__(self, signal, tab_number, level):
         super().__init__()
         self.signal = signal
         self.tab_number = tab_number
+        self.level = level
 
     def write(self, text):
         """
@@ -44,7 +46,9 @@ class StreamToTextEdit(io.StringIO):
         Args:
             text (str): The text to be written to the log text edit widget.
         """
-        self.signal.emit(text, self.tab_number)
+        normalized_text = text.rstrip()
+        if normalized_text:
+            self.signal.emit(normalized_text, self.tab_number, self.level)
 
 class BrightnessWorker(QObject):
     """
@@ -110,7 +114,23 @@ class InteractivePlot(QMainWindow):
     Attributes:
         update_log_signal (pyqtSignal): Signal emitted to update the log with a message and tab number.
     """
-    update_log_signal = pyqtSignal(str, int)  # str for message, int for tab number
+    update_log_signal = pyqtSignal(str, int, str)  # str for message, int for tab number, str for level
+    LOG_TAB_PREPARE = 1
+    LOG_TAB_LOCATE = 2
+    LOG_TAB_ANALYZE = 3
+    LOG_LEVEL_DEBUG = "DEBUG"
+    LOG_LEVEL_INFO = "INFO"
+    LOG_LEVEL_SUCCESS = "SUCCESS"
+    LOG_LEVEL_WARNING = "WARNING"
+    LOG_LEVEL_ERROR = "ERROR"
+    LOG_LEVEL_STYLES = {
+        LOG_LEVEL_DEBUG: {"label": "DEBUG", "badge": "#7a8694", "text": "#516579"},
+        LOG_LEVEL_INFO: {"label": "INFO", "badge": "#1f6fb2", "text": "#17324d"},
+        LOG_LEVEL_SUCCESS: {"label": "SUCCESS", "badge": "#2e8b57", "text": "#1f5133"},
+        LOG_LEVEL_WARNING: {"label": "WARNING", "badge": "#c17c00", "text": "#7a4f00"},
+        LOG_LEVEL_ERROR: {"label": "ERROR", "badge": "#c0392b", "text": "#7b241c"},
+    }
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Droplet Freezing Assay Offline Analysis')
@@ -222,11 +242,33 @@ class InteractivePlot(QMainWindow):
             bbox=dict(facecolor='red', alpha=0.12, edgecolor='red', boxstyle='round,pad=0.5')
         )
         
-    def update_log(self, message, tab_number):
-        if tab_number == 1:
-            self.log_text_edit.append(message)
-        elif tab_number == 2:
-            self.log_text_edit2.append(message)
+    def get_log_widget(self, tab_number):
+        if tab_number == self.LOG_TAB_PREPARE:
+            return getattr(self, 'log_text_edit_prep', None)
+        if tab_number == self.LOG_TAB_LOCATE:
+            return getattr(self, 'log_text_edit', None)
+        if tab_number == self.LOG_TAB_ANALYZE:
+            return getattr(self, 'log_text_edit2', None)
+        return None
+
+    def format_log_message(self, message, level):
+        level_style = self.LOG_LEVEL_STYLES[level]
+        timestamp = datetime.datetime.now().strftime('%H:%M:%S')
+        escaped_message = html.escape(str(message)).replace('\n', '<br>')
+        return (
+            f"<span style=\"color:#7d8a98;\">[{timestamp}]</span> "
+            f"<span style=\"color:{level_style['badge']}; font-weight:600;\">[{level_style['label']}]</span> "
+            f"<span style=\"color:{level_style['text']};\">{escaped_message}</span>"
+        )
+
+    def write_log_entry(self, widget, formatted_message):
+        widget.moveCursor(QTextCursor.End)
+        widget.insertHtml(formatted_message)
+        widget.insertPlainText("\n")
+        widget.moveCursor(QTextCursor.End)
+
+    def update_log(self, message, tab_number, level):
+        self.append_log_message(message, tab_number, level)
 
     def apply_styles(self):
         self.setStyleSheet("""
@@ -334,30 +376,32 @@ class InteractivePlot(QMainWindow):
         selected_name = os.path.basename(path) if path else "Not selected"
         return f"{prefix}: {selected_name}"
 
-    def append_log_message(self, message, tab_number):
-        if tab_number == 1 and hasattr(self, 'log_text_edit'):
-            self.log_text_edit.append(message)
-        elif tab_number == 2 and hasattr(self, 'log_text_edit2'):
-            self.log_text_edit2.append(message)
+    def append_log_message(self, message, tab_number, level):
+        widget = self.get_log_widget(tab_number)
+        if widget is None:
+            return
+
+        formatted_message = self.format_log_message(message, level)
+        self.write_log_entry(widget, formatted_message)
 
     def validate_file_path(self, path, label, tab_number):
         if not path:
-            self.append_log_message(f"{label} is not selected.", tab_number)
+            self.append_log_message(f"{label} is not selected.", tab_number, self.LOG_LEVEL_WARNING)
             return False
 
         if not os.path.isfile(path):
-            self.append_log_message(f"{label} does not exist or is not a file: {path}", tab_number)
+            self.append_log_message(f"{label} does not exist or is not a file: {path}", tab_number, self.LOG_LEVEL_ERROR)
             return False
 
         return True
 
     def validate_directory_path(self, path, label, tab_number):
         if not path:
-            self.append_log_message(f"{label} is not selected.", tab_number)
+            self.append_log_message(f"{label} is not selected.", tab_number, self.LOG_LEVEL_WARNING)
             return False
 
         if not os.path.isdir(path):
-            self.append_log_message(f"{label} does not exist or is not a directory: {path}", tab_number)
+            self.append_log_message(f"{label} does not exist or is not a directory: {path}", tab_number, self.LOG_LEVEL_ERROR)
             return False
 
         return True
@@ -368,16 +412,16 @@ class InteractivePlot(QMainWindow):
 
         image = cv2.imread(path)
         if image is None:
-            self.append_log_message(f"{label} could not be opened as an image: {path}", tab_number)
+            self.append_log_message(f"{label} could not be opened as an image: {path}", tab_number, self.LOG_LEVEL_ERROR)
             return None
 
         return image
 
     def validate_analysis_inputs(self):
         checks = (
-            self.validate_directory_path(self.image_directory, "Image directory", 2),
-            self.validate_file_path(self.temperature_recording_file, "Temperature recording file", 2),
-            self.validate_file_path(self.tube_location_file, "Tube locations file", 2),
+            self.validate_directory_path(self.image_directory, "Image directory", self.LOG_TAB_ANALYZE),
+            self.validate_file_path(self.temperature_recording_file, "Temperature recording file", self.LOG_TAB_ANALYZE),
+            self.validate_file_path(self.tube_location_file, "Tube locations file", self.LOG_TAB_ANALYZE),
         )
         return all(checks)
 
@@ -529,7 +573,7 @@ class InteractivePlot(QMainWindow):
         tab1_layout.addWidget(right_scroll_area, 3)
         
         # 重定向输出
-        sys.stdout = StreamToTextEdit(self.update_log_signal, 1)
+        sys.stdout = StreamToTextEdit(self.update_log_signal, self.LOG_TAB_LOCATE, self.LOG_LEVEL_INFO)
 
     def setup_freezing_detection_tab(self):
         tab2_layout = QHBoxLayout(self.tab2)
@@ -722,6 +766,13 @@ class InteractivePlot(QMainWindow):
         crop_layout.addWidget(self.restore_image_button)
         control_layout.addWidget(crop_group)
 
+        log_group = QGroupBox("Preparation Log")
+        log_layout = QVBoxLayout(log_group)
+        self.log_text_edit_prep = QTextEdit()
+        self.log_text_edit_prep.setReadOnly(True)
+        log_layout.addWidget(self.log_text_edit_prep)
+        control_layout.addWidget(log_group, 1)
+
         # Store original image
         self.original_image = None
         self.rotated_image = None
@@ -740,7 +791,7 @@ class InteractivePlot(QMainWindow):
         if file:
             self.sample_image_path = file
             self.refresh_image_path_labels()
-            self.log_text_edit.append(f"Selected image: {file}")
+            self.append_log_message(f"Selected image: {file}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
             self.load_crop_image()
 
     def select_image_directory(self):
@@ -748,21 +799,21 @@ class InteractivePlot(QMainWindow):
         if folder:
             self.image_directory = folder
             self.image_directory_label.setText(f"Current: {os.path.basename(folder)}")
-            self.log_text_edit2.append(f"Image Dir: {folder}")
+            self.append_log_message(f"Image directory selected: {folder}", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
 
     def select_temperature_recording(self):
         file, _ = QFileDialog.getOpenFileName(self, "Select Temperature Recording")
         if file:
             self.temperature_recording_file = file
             self.temperature_recording_label.setText(f"Current: {os.path.basename(file)}")
-            self.log_text_edit2.append(f"Temperature Recording: {file}")
+            self.append_log_message(f"Temperature recording selected: {file}", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
 
     def select_tube_locations(self):
         file, _ = QFileDialog.getOpenFileName(self, "Select Tube Locations")
         if file:
             self.tube_location_file = file
             self.tube_locations_label.setText(f"Current: {os.path.basename(file)}")
-            self.log_text_edit2.append(f"Tube Locations: {file}")
+            self.append_log_message(f"Tube locations selected: {file}", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
 
     def plot_tube_detection_results(self):
         self.ax.clear()
@@ -775,7 +826,7 @@ class InteractivePlot(QMainWindow):
             if hasattr(self, 'processed_image'):
                 self.img = self.processed_image
             else:
-                self.img = self.load_image_from_path(self.sample_image_path, "Sample image", 1)
+                self.img = self.load_image_from_path(self.sample_image_path, "Sample image", self.LOG_TAB_LOCATE)
                 if self.img is None:
                     return
 
@@ -809,13 +860,21 @@ class InteractivePlot(QMainWindow):
             self.ax.set_title(f"Detected PCR Tubes: {len(self.pcr_tubes)}, Inferred: {len(self.all_tubes) - len(self.pcr_tubes)}")
             self.ax.axis('off')
 
-            print(f"Detected {len(self.pcr_tubes)} PCR tubes")
-            print(f"Inferred {len(self.all_tubes) - len(self.pcr_tubes)} additional tubes")
+            self.append_log_message(
+                f"Detected {len(self.pcr_tubes)} PCR tubes",
+                self.LOG_TAB_LOCATE,
+                self.LOG_LEVEL_INFO,
+            )
+            self.append_log_message(
+                f"Inferred {len(self.all_tubes) - len(self.pcr_tubes)} additional tubes",
+                self.LOG_TAB_LOCATE,
+                self.LOG_LEVEL_INFO,
+            )
 
         except Exception as e:
             error_msg = f"Error: {str(e)}\n\n{traceback.format_exc()}"
             self.show_plot_error(self.ax, "An error occurred", error_msg)
-            print(error_msg)
+            self.append_log_message(error_msg, self.LOG_TAB_LOCATE, self.LOG_LEVEL_ERROR)
 
         finally:
             self.canvas.draw()
@@ -836,14 +895,22 @@ class InteractivePlot(QMainWindow):
                 # Remove if close enough
                 if circle_distance < 20:  # Adjust threshold as needed
                     self.inner_circles.remove(closest_circle)
-                    print(f"Removed inner circle at ({closest_circle['x']}, {closest_circle['y']})")
+                    self.append_log_message(
+                        f"Removed inner circle at ({closest_circle['x']}, {closest_circle['y']})",
+                        self.LOG_TAB_LOCATE,
+                        self.LOG_LEVEL_INFO,
+                    )
                     self.redraw_tube_detection_results()
 
         elif event.button == 3:  # Right click - add point
             # Add new inner circle
             new_circle = {'x': x, 'y': y, 'radius': 10}
             self.inner_circles.append(new_circle)
-            print(f"Added new inner circle at ({x}, {y})")
+            self.append_log_message(
+                f"Added new inner circle at ({x}, {y})",
+                self.LOG_TAB_LOCATE,
+                self.LOG_LEVEL_INFO,
+            )
             self.redraw_tube_detection_results()
 
     def redraw_tube_detection_results(self):
@@ -861,7 +928,11 @@ class InteractivePlot(QMainWindow):
         self.ax.set_title(f"PCR Tubes: {len(self.pcr_tubes)}, Inner Circles: {len(self.inner_circles)}")
         self.ax.axis('off')
         self.canvas.draw()
-        print(f"Redrawn: PCR Tubes: {len(self.pcr_tubes)}, Inner Circles: {len(self.inner_circles)}")
+        self.append_log_message(
+            f"Redrawn: PCR Tubes: {len(self.pcr_tubes)}, Inner Circles: {len(self.inner_circles)}",
+            self.LOG_TAB_LOCATE,
+            self.LOG_LEVEL_DEBUG,
+        )
 
     def schedule_update(self):
         self.update_timer.start(300)  # 300ms 延迟
@@ -869,21 +940,33 @@ class InteractivePlot(QMainWindow):
     def update_min_area(self, value):
         self.min_area_label.setText(f"Min Area: {value}")
         self.schedule_update()
-        print(f"Min Area updated to {value}")
+        self.append_log_message(f"Min area updated to {value}", self.LOG_TAB_LOCATE, self.LOG_LEVEL_DEBUG)
 
     def update_circularity(self, value):
         self.circularity_label.setText(f"Circularity: {value/100:.2f}")
         self.schedule_update()
-        print(f"Circularity updated to {value/100:.2f}")
+        self.append_log_message(
+            f"Circularity updated to {value/100:.2f}",
+            self.LOG_TAB_LOCATE,
+            self.LOG_LEVEL_DEBUG,
+        )
 
     def update_tubes_size(self, text):
         try:
             rows, columns = map(int, text.split(','))
             self.tubes_size = (rows, columns)
             self.schedule_update()
-            print(f"Tubes Size updated to {self.tubes_size}")
+            self.append_log_message(
+                f"Tube grid updated to {self.tubes_size}",
+                self.LOG_TAB_LOCATE,
+                self.LOG_LEVEL_DEBUG,
+            )
         except ValueError:
-            self.log_text_edit.append("Invalid input for tubes size. Please enter rows and columns as two integers separated by a comma.")
+            self.append_log_message(
+                "Invalid input for tubes size. Please enter rows and columns as two integers separated by a comma.",
+                self.LOG_TAB_LOCATE,
+                self.LOG_LEVEL_WARNING,
+            )
 
     def save_inner_circles(self):
         default_filename = f"inner_circles_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
@@ -928,7 +1011,11 @@ class InteractivePlot(QMainWindow):
 
             with open(file_path, 'wb') as f:
                 pickle.dump(restored_circles, f)
-            self.log_text_edit.append(f"Inner circles saved to {file_path}")
+            self.append_log_message(
+                f"Inner circles saved to {file_path}",
+                self.LOG_TAB_LOCATE,
+                self.LOG_LEVEL_SUCCESS,
+            )
 
     def save_freezing_events_data(self):
         default_filename = f"freezing_temperatures_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
@@ -947,7 +1034,11 @@ class InteractivePlot(QMainWindow):
                     else:
                         f.write(f"{tube},N/A,N/A\n")
             
-            self.log_text_edit2.append(f"Freezing Temperatures saved to {file_path}")
+            self.append_log_message(
+                f"Freezing temperatures saved to {file_path}",
+                self.LOG_TAB_ANALYZE,
+                self.LOG_LEVEL_SUCCESS,
+            )
             
     def load_freezing_events_data(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Load Freezing Temperatures", ".", "Text Files (*.txt)")
@@ -974,20 +1065,36 @@ class InteractivePlot(QMainWindow):
                                     'timestamp': None
                                 }
                         except ValueError as e:
-                            self.log_text_edit2.append(f"Error parsing line: {line}. Error: {str(e)}")
+                            self.append_log_message(
+                                f"Error parsing line: {line}. Error: {str(e)}",
+                                self.LOG_TAB_ANALYZE,
+                                self.LOG_LEVEL_ERROR,
+                            )
                             continue
                 
-                self.log_text_edit2.append(f"Freezing Temperatures loaded from {file_path}")
-                self.log_text_edit2.append(f"Loaded data for {len(self.freezing_temperatures)} tubes")
+                self.append_log_message(
+                    f"Freezing temperatures loaded from {file_path}",
+                    self.LOG_TAB_ANALYZE,
+                    self.LOG_LEVEL_SUCCESS,
+                )
+                self.append_log_message(
+                    f"Loaded data for {len(self.freezing_temperatures)} tubes",
+                    self.LOG_TAB_ANALYZE,
+                    self.LOG_LEVEL_INFO,
+                )
                 
                 # Update the plot if data is currently displayed
                 if hasattr(self, 'current_tube'):
                     self.update_brightness_timeseries_plot()
             
             except Exception as e:
-                self.log_text_edit2.append(f"Error loading file: {str(e)}")
+                self.append_log_message(
+                    f"Error loading file: {str(e)}",
+                    self.LOG_TAB_ANALYZE,
+                    self.LOG_LEVEL_ERROR,
+                )
         else:
-            self.log_text_edit2.append("No file selected")
+            self.append_log_message("No file selected", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_WARNING)
         
     def load_brightness_series(self):
         if not self.validate_analysis_inputs():
@@ -1022,11 +1129,11 @@ class InteractivePlot(QMainWindow):
             lambda: self.start_load_timeseries_button.setEnabled(True)
         )
         self.thread.finished.connect(
-            lambda: self.log_text_edit2.append("Analysis completed!")
+            lambda: self.append_log_message("Analysis completed!", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_SUCCESS)
         )
     
     def update_progress(self, value):
-        self.log_text_edit2.append(f"Progress: {value}%")
+        self.append_log_message(f"Progress: {value}%", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
 
     def process_results(self, temperature_recordings, brightness_timeseries):
         self.temperature_recordings = temperature_recordings
@@ -1037,18 +1144,22 @@ class InteractivePlot(QMainWindow):
         )
         self.num_tubes = len(self.inner_circles)  # Use the loaded inner circles
         self.current_tube = 0
-        self.log_text_edit2.append("Data loaded successfully!")
+        self.append_log_message("Data loaded successfully!", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_SUCCESS)
         
         # Count valid freezing points
         valid_freezing_points = sum(1 for data in self.freezing_temperatures.values() 
                                     if data['temperature'] is not None and data['timestamp'] is not None)
-        self.log_text_edit2.append(f"Detected freezing points for {valid_freezing_points} out of {self.num_tubes} tubes")
+        self.append_log_message(
+            f"Detected freezing points for {valid_freezing_points} out of {self.num_tubes} tubes",
+            self.LOG_TAB_ANALYZE,
+            self.LOG_LEVEL_INFO,
+        )
         
         self.update_brightness_timeseries_plot()
         self.enable_controls()
 
     def update_subprocess_log(self, message):
-        self.update_log_signal.emit(message, 2)
+        self.update_log_signal.emit(message, self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
         
     def enable_controls(self):
         self.next_button.setEnabled(True)
@@ -1098,7 +1209,11 @@ class InteractivePlot(QMainWindow):
                                             label=f"Freezing Point: {freezing_temp:.2f}°C")
         self.ax2.legend()
         self.canvas2.draw()
-        self.log_text_edit2.append(f"Updated freezing point for tube {self.current_tube}: {freezing_temp:.2f}°C at timestamp {freezing_timestamp}")
+        self.append_log_message(
+            f"Updated freezing point for tube {self.current_tube}: {freezing_temp:.2f}°C at timestamp {freezing_timestamp}",
+            self.LOG_TAB_ANALYZE,
+            self.LOG_LEVEL_INFO,
+        )
 
     def go_to_tube(self):
         try:
@@ -1107,14 +1222,22 @@ class InteractivePlot(QMainWindow):
                 self.current_tube = tube_number
                 self.update_brightness_timeseries_plot()
             else:
-                self.log_text_edit2.append(f"Invalid tube number. Please enter a number between 0 and {self.num_tubes - 1}")
+                self.append_log_message(
+                    f"Invalid tube number. Please enter a number between 0 and {self.num_tubes - 1}",
+                    self.LOG_TAB_ANALYZE,
+                    self.LOG_LEVEL_WARNING,
+                )
         except ValueError:
-            self.log_text_edit2.append("Please enter a valid integer")
+            self.append_log_message("Please enter a valid integer", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_WARNING)
             
     def update_brightness_timeseries_plot(self):
         try:
             if not hasattr(self, 'brightness_timeseries') or not self.brightness_timeseries:
-                self.log_text_edit2.append("No data loaded. Please run the analysis first.")
+                self.append_log_message(
+                    "No data loaded. Please run the analysis first.",
+                    self.LOG_TAB_ANALYZE,
+                    self.LOG_LEVEL_WARNING,
+                )
                 return
 
             if self.current_tube < len(self.inner_circles):
@@ -1149,14 +1272,22 @@ class InteractivePlot(QMainWindow):
                 )
 
                 self.canvas2.draw()
-                self.log_text_edit2.append(f"Displaying data for tube {self.current_tube}")
+                self.append_log_message(
+                    f"Displaying data for tube {self.current_tube}",
+                    self.LOG_TAB_ANALYZE,
+                    self.LOG_LEVEL_DEBUG,
+                )
             else:
-                self.log_text_edit2.append(f"Invalid index: {self.current_tube}")
+                self.append_log_message(
+                    f"Invalid index: {self.current_tube}",
+                    self.LOG_TAB_ANALYZE,
+                    self.LOG_LEVEL_WARNING,
+                )
         
         except Exception as e:
             error_msg = f"Error: {str(e)}\n\n{traceback.format_exc()}"
             self.show_plot_error(self.ax2, "An error occurred", error_msg)
-            self.log_text_edit2.append(error_msg)
+            self.append_log_message(error_msg, self.LOG_TAB_ANALYZE, self.LOG_LEVEL_ERROR)
 
         finally:
             self.canvas2.draw()
@@ -1171,10 +1302,18 @@ class InteractivePlot(QMainWindow):
                     freezing_temp_index = np.argmin(np.abs(self.current_tube_timestamps - freezing_timestamp))
                     freezing_brightness = self.current_tube_brightness[freezing_temp_index]
                 else:
-                    self.log_text_edit2.append(f"No freezing point detected for tube {self.current_tube}")
+                    self.append_log_message(
+                        f"No freezing point detected for tube {self.current_tube}",
+                        self.LOG_TAB_ANALYZE,
+                        self.LOG_LEVEL_WARNING,
+                    )
                     return
             else:
-                self.log_text_edit2.append(f"No freezing data available for tube {self.current_tube}")
+                self.append_log_message(
+                    f"No freezing data available for tube {self.current_tube}",
+                    self.LOG_TAB_ANALYZE,
+                    self.LOG_LEVEL_WARNING,
+                )
                 return
         else:
             # Recalculate freezing point within the selected range
@@ -1199,7 +1338,11 @@ class InteractivePlot(QMainWindow):
                     'timestamp': freezing_timestamp
                 }
             else:
-                self.log_text_edit2.append("Selected range is too small. Please select a larger range.")
+                self.append_log_message(
+                    "Selected range is too small. Please select a larger range.",
+                    self.LOG_TAB_ANALYZE,
+                    self.LOG_LEVEL_WARNING,
+                )
                 return
 
         # Remove old freezing point if it exists
@@ -1214,13 +1357,17 @@ class InteractivePlot(QMainWindow):
                                             label=f"Freezing Point: {freezing_temp:.2f}°C")
         self.ax2.legend()
         self.canvas2.draw()
-        self.log_text_edit2.append(f"Updated freezing point for tube {self.current_tube}: {freezing_temp:.2f}°C at timestamp {freezing_timestamp}")
+        self.append_log_message(
+            f"Updated freezing point for tube {self.current_tube}: {freezing_temp:.2f}°C at timestamp {freezing_timestamp}",
+            self.LOG_TAB_ANALYZE,
+            self.LOG_LEVEL_INFO,
+        )
 
     def on_brightness_span_select(self, xmin, xmax):
         self.update_freezing_point(xmin, xmax)
 
     def load_crop_image(self):
-        loaded_image = self.load_image_from_path(self.sample_image_path, "Sample image", 1)
+        loaded_image = self.load_image_from_path(self.sample_image_path, "Sample image", self.LOG_TAB_PREPARE)
         if loaded_image is None:
             return
 
@@ -1249,7 +1396,7 @@ class InteractivePlot(QMainWindow):
         try:
             # Check if an image is loaded
             if self.original_image is None:
-                self.log_text_edit.append("No image loaded. Please load an image first.")
+                self.append_log_message("No image loaded. Please load an image first.", self.LOG_TAB_PREPARE, self.LOG_LEVEL_WARNING)
                 return
 
             rotation_angle = float(self.rotation_input_crop.text())
@@ -1298,9 +1445,9 @@ class InteractivePlot(QMainWindow):
             }
 
         except ValueError:
-            self.log_text_edit.append("Invalid rotation angle. Please enter a number.")
+            self.append_log_message("Invalid rotation angle. Please enter a number.", self.LOG_TAB_PREPARE, self.LOG_LEVEL_WARNING)
         except Exception as e:
-            self.log_text_edit.append(f"Error during rotation: {str(e)}")
+            self.append_log_message(f"Error during rotation: {str(e)}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_ERROR)
 
     def restore_original_image(self):
         if self.original_image is not None:
@@ -1330,17 +1477,17 @@ class InteractivePlot(QMainWindow):
         x1, y1 = int(eclick.xdata), int(eclick.ydata)
         x2, y2 = int(erelease.xdata), int(erelease.ydata)
         self.crop_region = (min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1))
-        self.log_text_edit.append(f"Crop region set to: {self.crop_region}")
+        self.append_log_message(f"Crop region set to: {self.crop_region}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
 
     def apply_crop(self):
         try:
             # Check if an image is loaded and crop region is selected
             if self.rotated_image is None:
-                self.log_text_edit.append("No image loaded. Please load an image first.")
+                self.append_log_message("No image loaded. Please load an image first.", self.LOG_TAB_PREPARE, self.LOG_LEVEL_WARNING)
                 return
 
             if self.crop_region is None:
-                self.log_text_edit.append("No crop region selected. Please select a region.")
+                self.append_log_message("No crop region selected. Please select a region.", self.LOG_TAB_PREPARE, self.LOG_LEVEL_WARNING)
                 return
 
             # Crop the rotated image
@@ -1351,13 +1498,13 @@ class InteractivePlot(QMainWindow):
             self.processed_image = cropped_img
 
             # Update UI to show what was done
-            self.log_text_edit.append(f"Crop region: {self.crop_region}")
-            self.log_text_edit.append(f"Cropped image size: {cropped_img.shape[:2]}")
+            self.append_log_message(f"Crop region: {self.crop_region}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
+            self.append_log_message(f"Cropped image size: {cropped_img.shape[:2]}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
 
             # If rotation was applied, store the rotation parameters
             if hasattr(self, 'rotation_params'):
                 rotation_angle = self.rotation_params['angle']
-                self.log_text_edit.append(f"Rotation angle: {rotation_angle} degrees")
+                self.append_log_message(f"Rotation angle: {rotation_angle} degrees", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
 
             # Switch to Tube Locating tab
             self.tab_widget.setCurrentWidget(self.tab1)
@@ -1365,22 +1512,30 @@ class InteractivePlot(QMainWindow):
             # Run tube detection with the processed image
             self.plot_tube_detection_results()
 
-            self.log_text_edit.append("Crop and rotation applied to tube detection")
+            self.append_log_message("Crop and rotation applied to tube detection", self.LOG_TAB_PREPARE, self.LOG_LEVEL_SUCCESS)
 
         except Exception as e:
-            self.log_text_edit.append(f"Error during crop: {str(e)}")
+            self.append_log_message(f"Error during crop: {str(e)}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_ERROR)
 
     def load_inner_circles(self):
         try:
-            if not self.validate_file_path(self.tube_location_file, "Tube locations file", 2):
+            if not self.validate_file_path(self.tube_location_file, "Tube locations file", self.LOG_TAB_ANALYZE):
                 return False
 
             with open(self.tube_location_file, 'rb') as f:
                 self.inner_circles = pickle.load(f)
-            self.log_text_edit2.append(f"Loaded {len(self.inner_circles)} inner circles from {self.tube_location_file}")
+            self.append_log_message(
+                f"Loaded {len(self.inner_circles)} inner circles from {self.tube_location_file}",
+                self.LOG_TAB_ANALYZE,
+                self.LOG_LEVEL_SUCCESS,
+            )
             return True
         except Exception as e:
-            self.log_text_edit2.append(f"Error loading inner circles: {str(e)}")
+            self.append_log_message(
+                f"Error loading inner circles: {str(e)}",
+                self.LOG_TAB_ANALYZE,
+                self.LOG_LEVEL_ERROR,
+            )
             return False
             
 
