@@ -115,6 +115,8 @@ class InteractivePlot(QMainWindow):
         self.setWindowTitle('Droplet Freezing Assay Offline Analysis')
         self.setGeometry(100, 100, 1400, 800)
 
+        self.sample_image_path = '1/data/images/2023-04-03_16-05-57.png'
+
         # 创建主窗口部件和布局
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -128,9 +130,9 @@ class InteractivePlot(QMainWindow):
         self.tab1 = QWidget()
         self.tab2 = QWidget()
         self.tab3 = QWidget()
+        self.tab_widget.addTab(self.tab3, "Image Cropping")
         self.tab_widget.addTab(self.tab1, "Tube Locating")
         self.tab_widget.addTab(self.tab2, "Freezing Detection")
-        self.tab_widget.addTab(self.tab3, "Image Cropping")
 
         # Set up tab layouts
         self.setup_tube_locating_tab()
@@ -201,20 +203,6 @@ class InteractivePlot(QMainWindow):
         right_layout = QVBoxLayout(right_widget)
 
         # Image Path
-        # self.image_path_input = QLineEdit()
-        # self.image_path_input.setPlaceholderText("Enter image path")
-        # self.image_path_input.setText('200/img/IMG00000000000001975884.png')
-        # self.image_path_input.textChanged.connect(self.schedule_update)
-        # right_layout.addWidget(QLabel("Image Path:"))
-        # right_layout.addWidget(self.image_path_input)
-        self.sample_image_path_button = QPushButton("Select an Image")
-        self.sample_image_path_button.clicked.connect(self.select_sample_image_path)
-        # self.sample_image_path = '1/data/images/cropped.png'  # a default
-        self.sample_image_path = '1/data/images/2023-04-03_16-05-57.png'  # a default
-        self.sample_image_path_label = QLabel(f"Current image: {os.path.basename(self.sample_image_path)}")
-        right_layout.addWidget(self.sample_image_path_label)
-        right_layout.addWidget(self.sample_image_path_button)
-        
         # Add refresh button
         self.refresh_button = QPushButton("Refresh")
         self.refresh_button.clicked.connect(self.plot_tube_detection_results)
@@ -377,13 +365,25 @@ class InteractivePlot(QMainWindow):
         tab3_layout = QHBoxLayout(self.tab3)
 
         # Create matplotlib figure and canvas
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
         self.figure_crop = Figure(figsize=(5, 4), dpi=100)
         self.canvas_crop = FigureCanvas(self.figure_crop)
+        self.toolbar_crop = NavigationToolbar(self.canvas_crop, self)
         self.ax_crop = self.figure_crop.add_subplot(111)
+        left_layout.addWidget(self.toolbar_crop)
+        left_layout.addWidget(self.canvas_crop)
 
         # Create control panel
         control_widget = QWidget()
         control_layout = QVBoxLayout(control_widget)
+
+        self.sample_image_path_label = QLabel(f"Current image: {os.path.basename(self.sample_image_path)}")
+        control_layout.addWidget(self.sample_image_path_label)
+
+        self.sample_image_path_button = QPushButton("Select an Image")
+        self.sample_image_path_button.clicked.connect(self.select_sample_image_path)
+        control_layout.addWidget(self.sample_image_path_button)
 
         # Add load image button
         self.load_crop_image_button = QPushButton("Load Image")
@@ -418,8 +418,10 @@ class InteractivePlot(QMainWindow):
         self.original_image = None
         self.rotated_image = None
 
+        control_layout.addStretch(1)
+
         # Add widgets to main layout
-        tab3_layout.addWidget(self.canvas_crop, 2)
+        tab3_layout.addWidget(left_widget, 2)
         tab3_layout.addWidget(control_widget, 1)
 
     
@@ -428,7 +430,8 @@ class InteractivePlot(QMainWindow):
         if file:
             self.sample_image_path = file
             self.sample_image_path_label.setText(f"Current image: {os.path.basename(self.sample_image_path)}")
-            self.log_text_edit.append(f"Temperature Recording: {file}")
+            self.log_text_edit.append(f"Selected image: {file}")
+            self.load_crop_image()
 
     def select_image_directory(self):
         folder = QFileDialog.getExistingDirectory(self, "Select Image Directory")
@@ -1044,7 +1047,7 @@ class InteractivePlot(QMainWindow):
                 self.log_text_edit.append(f"Rotation angle: {rotation_angle} degrees")
 
             # Switch to Tube Locating tab
-            self.tab_widget.setCurrentIndex(0)
+            self.tab_widget.setCurrentWidget(self.tab1)
 
             # Run tube detection with the processed image
             self.plot_tube_detection_results()
