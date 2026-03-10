@@ -66,7 +66,7 @@ def build_tube_locating_tab(window):
     detection_layout = QVBoxLayout(detection_group)
     detection_layout.setSpacing(10)
 
-    window.refresh_button = QPushButton("Refresh Detection")
+    window.refresh_button = QPushButton("Run Tube Detection")
     window.refresh_button.clicked.connect(window.run_tube_detection_and_render_plot)
     detection_layout.addWidget(window.refresh_button)
 
@@ -128,12 +128,12 @@ def build_tube_locating_tab(window):
 
     review_group = QGroupBox("Manual Review")
     review_layout = QVBoxLayout(review_group)
-    review_hint = QLabel("Left click removes an inner circle. Right click adds a new one.")
+    review_hint = QLabel("Left click removes an inner circle. Right click adds a new inner circle at the clicked location.")
     review_hint.setObjectName("hintLabel")
     review_hint.setWordWrap(True)
     review_layout.addWidget(review_hint)
 
-    window.save_button = QPushButton("Save Inner Circles")
+    window.save_button = QPushButton("Save Inner-Circle Locations")
     window.save_button.clicked.connect(window.save_detected_inner_circles)
     review_layout.addWidget(window.save_button)
     right_layout.addWidget(review_group)
@@ -166,6 +166,7 @@ def build_freezing_detection_tab(window):
     left_layout.addWidget(window.canvas2, 1)
 
     window.ax2 = window.figure2.add_subplot(111)
+    window.show_analysis_plot_instructions()
 
     right_widget = QWidget()
     right_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -181,25 +182,25 @@ def build_freezing_detection_tab(window):
     input_layout = QVBoxLayout(input_group)
 
     image_dir_group, window.image_directory_label = window.create_selection_group(
-        "Image Directory", "Select Images Folder", window.select_image_directory)
+        "Image Directory", "Choose Image Folder For Analysis", window.select_image_directory)
     input_layout.addWidget(image_dir_group)
 
     temp_rec_group, window.temperature_recording_label = window.create_selection_group(
-        "Temperature Recording", "Select Temperature File", window.select_temperature_recording)
+        "Temperature Recording", "Choose Temperature Recording File", window.select_temperature_recording)
     input_layout.addWidget(temp_rec_group)
 
     tube_loc_group, window.tube_locations_label = window.create_selection_group(
-        "Tube Locations", "Select Tube Locations", window.select_tube_locations)
+        "Tube Locations", "Choose Saved Tube-Location File", window.select_tube_locations)
     input_layout.addWidget(tube_loc_group)
 
-    window.start_load_timeseries_button = QPushButton("Run Analysis")
+    window.start_load_timeseries_button = QPushButton("Load Brightness Timeseries")
     window.start_load_timeseries_button.clicked.connect(window.start_brightness_series_analysis)
     input_layout.addWidget(window.start_load_timeseries_button)
 
     window.analysis_progress_bar = QProgressBar()
     window.analysis_progress_bar.setRange(0, 100)
     window.analysis_progress_bar.setValue(0)
-    window.analysis_progress_bar.setFormat("Idle")
+    window.analysis_progress_bar.setFormat("Waiting for the image folder, temperature file, tube locations to start ...")
     input_layout.addWidget(window.analysis_progress_bar)
 
     right_layout.addWidget(input_group)
@@ -208,9 +209,9 @@ def build_freezing_detection_tab(window):
     review_layout = QVBoxLayout(review_group)
 
     button_layout = QHBoxLayout()
-    window.prev_button = QPushButton("Previous")
-    window.next_button = QPushButton("Next")
-    window.discard_button = QPushButton("Discard")
+    window.prev_button = QPushButton("Show Previous Tube")
+    window.next_button = QPushButton("Show Next Tube")
+    window.discard_button = QPushButton("Mark Current Tube As Not Available")
     window.prev_button.clicked.connect(window.previous_tube)
     window.next_button.clicked.connect(window.next_tube)
     window.discard_button.clicked.connect(window.discard_current_tube_freezing_point)
@@ -220,17 +221,17 @@ def build_freezing_detection_tab(window):
     review_layout.addLayout(button_layout)
 
     window.value_input = QLineEdit()
-    window.value_input.setPlaceholderText("Enter tube number")
+    window.value_input.setPlaceholderText("Enter a tube number, press Enter to review")
     window.value_input.returnPressed.connect(window.go_to_tube)
-    review_layout.addWidget(QLabel("Go to tube:"))
+    review_layout.addWidget(QLabel("Jump to tube number:"))
     review_layout.addWidget(window.value_input)
     right_layout.addWidget(review_group)
 
     export_group = QGroupBox("Import / Export")
     export_layout = QVBoxLayout(export_group)
-    window.save_button_freezing_temperatures = QPushButton("Save Freezing Temperatures")
+    window.save_button_freezing_temperatures = QPushButton("Export Reviewed Freezing Temperatures")
     window.save_button_freezing_temperatures.clicked.connect(window.save_freezing_events_data)
-    window.load_button_freezing_temperatures = QPushButton("Load Freezing Temperatures")
+    window.load_button_freezing_temperatures = QPushButton("Import Saved Freezing Temperatures")
     window.load_button_freezing_temperatures.clicked.connect(window.load_freezing_events_data)
     export_layout.addWidget(window.save_button_freezing_temperatures)
     export_layout.addWidget(window.load_button_freezing_temperatures)
@@ -288,11 +289,11 @@ def build_image_cropping_tab(window):
     window.sample_image_path_label.setWordWrap(True)
     image_layout.addWidget(window.sample_image_path_label)
 
-    window.sample_image_path_button = QPushButton("Select an Image")
+    window.sample_image_path_button = QPushButton("Choose Source Image")
     window.sample_image_path_button.clicked.connect(window.select_sample_image_path)
     image_layout.addWidget(window.sample_image_path_button)
 
-    window.load_crop_image_button = QPushButton("Load Image")
+    window.load_crop_image_button = QPushButton("Load Selected Image Into Preview")
     window.load_crop_image_button.clicked.connect(window.load_selected_image_into_preparation_view)
     image_layout.addWidget(window.load_crop_image_button)
     control_layout.addWidget(image_group)
@@ -313,23 +314,23 @@ def build_image_cropping_tab(window):
     rotation_hint.setWordWrap(True)
     rotation_group_layout.addWidget(rotation_hint)
 
-    window.apply_rotation_button = QPushButton("Rotate Image")
+    window.apply_rotation_button = QPushButton("Apply Rotation To Preview")
     window.apply_rotation_button.clicked.connect(window.apply_preparation_image_rotation)
     rotation_group_layout.addWidget(window.apply_rotation_button)
     control_layout.addWidget(rotation_group)
 
     crop_group = QGroupBox("Step 3: Crop And Continue")
     crop_layout = QVBoxLayout(crop_group)
-    crop_hint = QLabel("Drag a rectangle on the image. Apply Crop will switch to the tube detection tab.")
+    crop_hint = QLabel("Drag a rectangle on the image to select the analysis region. Applying the crop will open the tube-detection tab.")
     crop_hint.setObjectName("hintLabel")
     crop_hint.setWordWrap(True)
     crop_layout.addWidget(crop_hint)
 
-    window.apply_crop_button = QPushButton("Apply Crop")
+    window.apply_crop_button = QPushButton("Apply Crop And Open Tube Detection")
     window.apply_crop_button.clicked.connect(window.apply_selected_crop_to_tube_detection)
     crop_layout.addWidget(window.apply_crop_button)
 
-    window.restore_image_button = QPushButton("Restore Original Image")
+    window.restore_image_button = QPushButton("Restore Original Image Preview")
     window.restore_image_button.clicked.connect(window.restore_original_preparation_image)
     crop_layout.addWidget(window.restore_image_button)
     control_layout.addWidget(crop_group)

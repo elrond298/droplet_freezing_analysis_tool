@@ -101,7 +101,7 @@ def start_brightness_series_analysis(window):
 
     window.start_load_timeseries_button.setEnabled(False)
     window.analysis_progress_bar.setValue(0)
-    window.analysis_progress_bar.setFormat("Loading brightness timeseries... %p%")
+    window.analysis_progress_bar.setFormat("Starting brightness-timeseries analysis for the selected inputs... %p%")
 
     window.thread = QThread()
     window.worker = BrightnessWorker(window.image_directory, window.tube_location_file, window.temperature_recording_file)
@@ -125,7 +125,7 @@ def apply_analysis_results(window, temperature_recordings, brightness_timeseries
     window.temperature_recordings = temperature_recordings
     window.brightness_timeseries = brightness_timeseries
     window.analysis_progress_bar.setValue(100)
-    window.analysis_progress_bar.setFormat("Analysis completed (%p%)")
+    window.analysis_progress_bar.setFormat("Analysis complete. Drag a span to adjust temperature below. (%p%)")
     window.freezing_temperatures, valid_freezing_points = compute_analysis_results(
         window.temperature_recordings,
         window.brightness_timeseries,
@@ -283,6 +283,17 @@ def _render_freezing_point(window, freezing_data, persist):
     if hasattr(window, 'freezing_point'):
         window.freezing_point.set_data([], [])
         window.freezing_point.set_label("")
+
+    if freezing_temp is None or freezing_timestamp is None or freezing_brightness is None:
+        if window.ax2.get_legend() is not None:
+            window.ax2.get_legend().remove()
+        window.canvas2.draw()
+        window.append_log_message(
+            f"Marked tube {window.current_tube} as Not Available.",
+            window.LOG_TAB_ANALYZE,
+            window.LOG_LEVEL_INFO,
+        )
+        return
 
     window.freezing_point, = window.ax2.plot(
         freezing_temp,

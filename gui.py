@@ -1,5 +1,6 @@
 import sys
 import os
+import html
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLineEdit, QSlider, QLabel, QSpinBox, 
                              QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox, QFormLayout,
@@ -461,6 +462,9 @@ class InteractivePlot(QMainWindow):
 
         self.apply_styles()
 
+        if hasattr(self, 'ax2') and self.brightness_timeseries is None:
+            self.show_analysis_plot_instructions()
+
         if persist and hasattr(self, 'selection_cache_path'):
             self.save_selection_cache()
 
@@ -522,6 +526,43 @@ class InteractivePlot(QMainWindow):
             family='monospace',
             bbox=dict(facecolor='red', alpha=0.12, edgecolor='red', boxstyle='round,pad=0.5')
         )
+
+    def show_analysis_plot_instructions(self):
+        title_font_size = self.ui_font_size + 3
+        body_font_size = max(self.ui_font_size, self.MIN_FONT_SIZE)
+
+        self.ax2.clear()
+        self.ax2.set_xticks([])
+        self.ax2.set_yticks([])
+        # for spine in self.ax2.spines.values():
+        #     spine.set_visible(False)
+
+        self.ax2.text(
+            0.5,
+            0.78,
+            "No analysis data loaded yet",
+            transform=self.ax2.transAxes,
+            ha='center',
+            va='center',
+            fontsize=title_font_size,
+            fontweight='bold',
+            color='#17324d',
+        )
+        self.ax2.text(
+            0.5,
+            0.52,
+            "1. Select the image folder, temperature file, and tube-location file on the right.\n"
+            "2. Click 'Load Brightness Timeseries' to generate the plot for each tube.\n"
+            "3. Review one tube at a time, then adjust or export the freezing temperatures.",
+            transform=self.ax2.transAxes,
+            ha='center',
+            va='center',
+            wrap=True,
+            fontsize=body_font_size,
+            color='#516579',
+            bbox=dict(facecolor='#eef5fb', edgecolor='#d6e4f2', boxstyle='round,pad=0.7'),
+        )
+        self.canvas2.draw()
         
     def get_log_widget(self, tab_number):
         return logging_get_log_widget(self, tab_number)
@@ -653,6 +694,19 @@ class InteractivePlot(QMainWindow):
         selected_name = os.path.basename(path) if path else "Not selected"
         return f"{prefix}: {selected_name}"
 
+    def format_highlighted_selected_path(self, prefix, path):
+        if path:
+            selected_name = html.escape(os.path.basename(path))
+            return (
+                f"{html.escape(prefix)}: "
+                f"<span style=\"color:#0b7a75; font-weight:600;\">{selected_name}</span>"
+            )
+
+        return (
+            f"{html.escape(prefix)}: "
+            f"<span style=\"color:#7a8694;\">Not selected</span>"
+        )
+
     def append_log_message(self, message, tab_number, level):
         logging_append_log_message(self, message, tab_number, level)
 
@@ -721,7 +775,7 @@ class InteractivePlot(QMainWindow):
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         button.clicked.connect(selection_method)
         
-        label = QLabel("Current: Not selected")
+        label = QLabel("Selected item: Not selected")
         label.setWordWrap(True)
         
         layout.addWidget(button)

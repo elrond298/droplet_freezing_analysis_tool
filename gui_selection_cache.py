@@ -5,18 +5,24 @@ import os
 def refresh_image_path_labels(window):
     current_image = os.path.basename(window.sample_image_path) if window.sample_image_path else "Not selected"
     if hasattr(window, 'sample_image_path_label'):
-        window.sample_image_path_label.setText(f"Current image: {current_image}")
+        window.sample_image_path_label.setText(f"Selected source image: {current_image}")
     if hasattr(window, 'tube_image_summary_label'):
-        window.tube_image_summary_label.setText(f"Tube detection source: {current_image}")
+        window.tube_image_summary_label.setText(f"Image used for tube detection: {current_image}")
 
 
 def refresh_analysis_input_labels(window):
     if hasattr(window, 'image_directory_label'):
-        window.image_directory_label.setText(window.format_selected_path("Current", window.image_directory))
+        window.image_directory_label.setText(
+            window.format_highlighted_selected_path("Selected image folder", window.image_directory)
+        )
     if hasattr(window, 'temperature_recording_label'):
-        window.temperature_recording_label.setText(window.format_selected_path("Current", window.temperature_recording_file))
+        window.temperature_recording_label.setText(
+            window.format_highlighted_selected_path("Selected temperature file", window.temperature_recording_file)
+        )
     if hasattr(window, 'tube_locations_label'):
-        window.tube_locations_label.setText(window.format_selected_path("Current", window.tube_location_file))
+        window.tube_locations_label.setText(
+            window.format_highlighted_selected_path("Selected tube-location file", window.tube_location_file)
+        )
 
 
 def load_selection_cache(window):

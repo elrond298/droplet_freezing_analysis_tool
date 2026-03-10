@@ -199,11 +199,10 @@ def recalculate_freezing_point_in_range(temperature, brightness, timestamps, xmi
 
 
 def discard_freezing_point(brightness, timestamps):
-    freezing_index = 0
     return {
-        'temperature': 0,
-        'timestamp': timestamps[freezing_index],
-        'brightness': brightness[freezing_index],
+        'temperature': None,
+        'timestamp': None,
+        'brightness': None,
     }
 
 
