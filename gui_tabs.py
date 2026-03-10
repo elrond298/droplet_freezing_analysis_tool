@@ -18,6 +18,24 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as Navigation
 from matplotlib.figure import Figure
 
 
+class FullMessageNavigationToolbar(NavigationToolbar):
+    def __init__(self, canvas, parent):
+        super().__init__(canvas, parent)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        if hasattr(self, 'locLabel'):
+            self.locLabel.hide()
+
+    def set_message(self, message):
+        full_message = message or ""
+        if hasattr(self, 'locLabel'):
+            self.locLabel.clear()
+
+        window = self.window()
+        if window is not None and hasattr(window, 'statusBar'):
+            window.statusBar().showMessage(full_message)
+
+
 def create_log_group(window, title, attribute_name):
     log_group = QGroupBox(title)
     log_layout = QVBoxLayout(log_group)
@@ -40,7 +58,7 @@ def build_tube_locating_tab(window):
     window.figure = Figure(figsize=(5, 4), dpi=100)
     window.configure_figure_padding(window.figure, image_mode=True, reserve_title_space=True)
     window.canvas = FigureCanvas(window.figure)
-    window.toolbar = NavigationToolbar(window.canvas, window)
+    window.toolbar = FullMessageNavigationToolbar(window.canvas, window)
     left_layout.addWidget(window.toolbar)
     left_layout.addWidget(window.canvas, 1)
 
@@ -161,7 +179,7 @@ def build_freezing_detection_tab(window):
     window.figure2 = Figure(figsize=(5, 4), dpi=100)
     window.configure_figure_padding(window.figure2)
     window.canvas2 = FigureCanvas(window.figure2)
-    window.toolbar2 = NavigationToolbar(window.canvas2, window)
+    window.toolbar2 = FullMessageNavigationToolbar(window.canvas2, window)
     left_layout.addWidget(window.toolbar2)
     left_layout.addWidget(window.canvas2, 1)
 
@@ -267,7 +285,7 @@ def build_image_cropping_tab(window):
     window.figure_crop = Figure(figsize=(5, 4), dpi=100)
     window.configure_figure_padding(window.figure_crop, image_mode=True)
     window.canvas_crop = FigureCanvas(window.figure_crop)
-    window.toolbar_crop = NavigationToolbar(window.canvas_crop, window)
+    window.toolbar_crop = FullMessageNavigationToolbar(window.canvas_crop, window)
     window.ax_crop = window.figure_crop.add_subplot(111)
     left_layout.addWidget(window.toolbar_crop)
     left_layout.addWidget(window.canvas_crop, 1)
