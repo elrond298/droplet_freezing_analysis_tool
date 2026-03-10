@@ -195,6 +195,32 @@ class InteractivePlot(QMainWindow):
         scroll_area.setFrameShape(QFrame.NoFrame)
         scroll_area.setWidget(content_widget)
         return scroll_area
+
+    def configure_figure_padding(self, figure, image_mode=False):
+        if image_mode:
+            figure.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
+        else:
+            figure.subplots_adjust(left=0.10, right=0.98, top=0.94, bottom=0.12)
+
+    def show_plot_error(self, axes, title, error_msg):
+        axes.clear()
+        axes.set_title(title, pad=14)
+        axes.set_xticks([])
+        axes.set_yticks([])
+        for spine in axes.spines.values():
+            spine.set_visible(False)
+        axes.text(
+            0.02,
+            0.96,
+            error_msg,
+            transform=axes.transAxes,
+            ha='left',
+            va='top',
+            wrap=True,
+            fontsize=9,
+            family='monospace',
+            bbox=dict(facecolor='red', alpha=0.12, edgecolor='red', boxstyle='round,pad=0.5')
+        )
         
     def update_log(self, message, tab_number):
         if tab_number == 1:
@@ -337,11 +363,14 @@ class InteractivePlot(QMainWindow):
         # 创建左侧的图表部件和布局
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(4)
         self.figure = Figure(figsize=(5, 4), dpi=100)
+        self.configure_figure_padding(self.figure, image_mode=True)
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = NavigationToolbar(self.canvas, self)
         left_layout.addWidget(self.toolbar)
-        left_layout.addWidget(self.canvas)
+        left_layout.addWidget(self.canvas, 1)
 
         self.ax = self.figure.add_subplot(111)
         
@@ -459,11 +488,14 @@ class InteractivePlot(QMainWindow):
         # 创建左侧的图表部件
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(4)
         self.figure2 = Figure(figsize=(5, 4), dpi=100)
+        self.configure_figure_padding(self.figure2)
         self.canvas2 = FigureCanvas(self.figure2)
         self.toolbar2 = NavigationToolbar(self.canvas2, self)
         left_layout.addWidget(self.toolbar2)
-        left_layout.addWidget(self.canvas2)
+        left_layout.addWidget(self.canvas2, 1)
 
         self.ax2 = self.figure2.add_subplot(111)
 
@@ -565,12 +597,15 @@ class InteractivePlot(QMainWindow):
         # Create matplotlib figure and canvas
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(4)
         self.figure_crop = Figure(figsize=(5, 4), dpi=100)
+        self.configure_figure_padding(self.figure_crop, image_mode=True)
         self.canvas_crop = FigureCanvas(self.figure_crop)
         self.toolbar_crop = NavigationToolbar(self.canvas_crop, self)
         self.ax_crop = self.figure_crop.add_subplot(111)
         left_layout.addWidget(self.toolbar_crop)
-        left_layout.addWidget(self.canvas_crop)
+        left_layout.addWidget(self.canvas_crop, 1)
 
         # Create control panel
         control_widget = QWidget()
@@ -725,11 +760,7 @@ class InteractivePlot(QMainWindow):
 
         except Exception as e:
             error_msg = f"Error: {str(e)}\n\n{traceback.format_exc()}"
-            self.ax.text(0.5, 0.5, error_msg,
-                        ha='center', va='center', wrap=True,
-                        bbox=dict(facecolor='red', alpha=0.2))
-            self.ax.set_title("An error occurred")
-            self.ax.axis('off')
+            self.show_plot_error(self.ax, "An error occurred", error_msg)
             print(error_msg)
 
         finally:
@@ -1066,11 +1097,7 @@ class InteractivePlot(QMainWindow):
         
         except Exception as e:
             error_msg = f"Error: {str(e)}\n\n{traceback.format_exc()}"
-            self.ax2.text(0.5, 0.5, error_msg, 
-                         ha='center', va='center', wrap=True,
-                         bbox=dict(facecolor='red', alpha=0.2))
-            self.ax2.set_title("An error occurred")
-            self.ax2.axis('off')
+            self.show_plot_error(self.ax2, "An error occurred", error_msg)
             self.log_text_edit2.append(error_msg)
 
         finally:
