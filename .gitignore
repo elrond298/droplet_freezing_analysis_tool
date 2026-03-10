@@ -13,3 +13,5 @@ usage/*.pdf
 .auctex-auto
 freezing_temperatures*
 inner_circles*
+.env
+.gui_selection_cache.json
