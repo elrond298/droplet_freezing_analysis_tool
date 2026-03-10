@@ -7,6 +7,19 @@ This software is intended to simplify the process of droplet freezing experiment
 
 Follow one of these installation method below to create the environment.
 
+### Using uv
+
+If you use `uv`, install `uv`, create the project environment from `pyproject.toml`, and run the GUI with:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv python install 3.14
+uv sync
+uv run python gui.py
+```
+
+If `uv` is already installed, you only need the last three commands.
+
 ### Using Conda
 
 To install the required packages using Conda, you can create a new environment from the `environment.yml` file. Run the following commands:
@@ -35,6 +48,21 @@ python3 gui.py
 ```
 
 Then follow the instructions in `usage/使用说明.pdf` to complete the recognition.
+
+## GUI Overview
+
+The desktop GUI provides a complete workflow for droplet-freezing analysis:
+
+- `Prepare Image`: load a source image, rotate it if needed, and crop the useful region before tube detection.
+- `Locate Tubes`: detect PCR tubes, tune detection settings such as minimum area and circularity, manually review inner circles, and save the detected inner-circle positions.
+- `Analyze Freezing`: load the image folder, temperature recording, and saved tube locations, run the timeseries analysis, review each tube one by one, and save or reload freezing-temperature results.
+- `Settings`: adjust UI font size and review available keyboard shortcuts.
+
+Additional GUI behavior:
+
+- Selection paths are cached between sessions for the sample image, image directory, temperature file, and tube-location file.
+- Each major workflow tab includes its own log panel for progress messages and errors.
+- Keyboard shortcuts are available for tab switching and font-size changes, including `Ctrl+1` to `Ctrl+4`, `Ctrl+,`, `Ctrl+=`, `Ctrl+-`, and `Ctrl+0`.
 
 ## Qt Version
 
