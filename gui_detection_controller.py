@@ -8,6 +8,24 @@ from PyQt6.QtWidgets import QFileDialog
 from gui_services import dump_inner_circles, render_manual_detection_overlay, render_tube_detection_overlay, run_tube_detection
 
 
+def reset_tube_detection_view(window):
+    if hasattr(window, 'update_timer'):
+        window.update_timer.stop()
+
+    window.img = None
+    window.pcr_tubes = []
+    window.inferred_tubes = []
+    window.all_tubes = []
+    window.inner_circles = []
+
+    window.run_tube_detection_and_render_plot()
+    window.append_log_message(
+        "Tube detection reset to use the restored original image.",
+        window.LOG_TAB_LOCATE,
+        window.LOG_LEVEL_INFO,
+    )
+
+
 def run_tube_detection_and_render_plot(window):
     window.ax.clear()
     try:

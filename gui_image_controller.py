@@ -68,6 +68,7 @@ def restore_original_preparation_image(window):
             window.LOG_TAB_PREPARE,
             window.LOG_LEVEL_INFO,
         )
+        window.reset_tube_detection_view()
 
 
 def apply_selected_crop_to_tube_detection(window):

@@ -23,6 +23,7 @@ from gui_analysis_controller import (
 from gui_detection_controller import (
     handle_tube_detection_plot_click as detection_handle_tube_detection_plot_click,
     redraw_manual_tube_detection_plot as detection_redraw_manual_tube_detection_plot,
+    reset_tube_detection_view as detection_reset_tube_detection_view,
     run_tube_detection_and_render_plot as detection_run_tube_detection_and_render_plot,
     save_detected_inner_circles as detection_save_detected_inner_circles,
 )
@@ -853,6 +854,9 @@ class InteractivePlot(QMainWindow):
 
     def redraw_manual_tube_detection_plot(self):
         detection_redraw_manual_tube_detection_plot(self)
+
+    def reset_tube_detection_view(self):
+        detection_reset_tube_detection_view(self)
 
     def schedule_update(self):
         self.update_timer.start(300)  # 300ms 延迟
