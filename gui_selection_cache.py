@@ -3,11 +3,14 @@ import os
 
 
 def refresh_image_path_labels(window):
-    current_image = os.path.basename(window.sample_image_path) if window.sample_image_path else "Not selected"
     if hasattr(window, 'sample_image_path_label'):
-        window.sample_image_path_label.setText(f"Selected source image: {current_image}")
+        window.sample_image_path_label.setText(
+            window.format_highlighted_selected_path("Current image", window.sample_image_path)
+        )
     if hasattr(window, 'tube_image_summary_label'):
-        window.tube_image_summary_label.setText(f"Image used for tube detection: {current_image}")
+        window.tube_image_summary_label.setText(
+            window.format_highlighted_selected_path("Tube detection source", window.sample_image_path)
+        )
 
 
 def refresh_analysis_input_labels(window):

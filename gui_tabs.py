@@ -285,7 +285,9 @@ def build_image_cropping_tab(window):
     image_group = QGroupBox("Step 1: Choose Image")
     image_layout = QVBoxLayout(image_group)
 
-    window.sample_image_path_label = QLabel(window.format_selected_path("Current image", window.sample_image_path))
+    window.sample_image_path_label = QLabel(
+        window.format_highlighted_selected_path("Current image", window.sample_image_path)
+    )
     window.sample_image_path_label.setWordWrap(True)
     image_layout.addWidget(window.sample_image_path_label)
 
