@@ -117,7 +117,7 @@ class InteractivePlot(QMainWindow):
         self.configure_window_for_screen()
         self.apply_styles()
 
-        self.sample_image_path = '1/data/images/2023-04-03_16-05-57.png'
+        self.sample_image_path = None
 
         # 创建主窗口部件和布局
         central_widget = QWidget()
@@ -330,8 +330,59 @@ class InteractivePlot(QMainWindow):
         label.setWordWrap(True)
         return label
 
+    def format_selected_path(self, prefix, path):
+        selected_name = os.path.basename(path) if path else "Not selected"
+        return f"{prefix}: {selected_name}"
+
+    def append_log_message(self, message, tab_number):
+        if tab_number == 1 and hasattr(self, 'log_text_edit'):
+            self.log_text_edit.append(message)
+        elif tab_number == 2 and hasattr(self, 'log_text_edit2'):
+            self.log_text_edit2.append(message)
+
+    def validate_file_path(self, path, label, tab_number):
+        if not path:
+            self.append_log_message(f"{label} is not selected.", tab_number)
+            return False
+
+        if not os.path.isfile(path):
+            self.append_log_message(f"{label} does not exist or is not a file: {path}", tab_number)
+            return False
+
+        return True
+
+    def validate_directory_path(self, path, label, tab_number):
+        if not path:
+            self.append_log_message(f"{label} is not selected.", tab_number)
+            return False
+
+        if not os.path.isdir(path):
+            self.append_log_message(f"{label} does not exist or is not a directory: {path}", tab_number)
+            return False
+
+        return True
+
+    def load_image_from_path(self, path, label, tab_number):
+        if not self.validate_file_path(path, label, tab_number):
+            return None
+
+        image = cv2.imread(path)
+        if image is None:
+            self.append_log_message(f"{label} could not be opened as an image: {path}", tab_number)
+            return None
+
+        return image
+
+    def validate_analysis_inputs(self):
+        checks = (
+            self.validate_directory_path(self.image_directory, "Image directory", 2),
+            self.validate_file_path(self.temperature_recording_file, "Temperature recording file", 2),
+            self.validate_file_path(self.tube_location_file, "Tube locations file", 2),
+        )
+        return all(checks)
+
     def refresh_image_path_labels(self):
-        current_image = os.path.basename(self.sample_image_path)
+        current_image = os.path.basename(self.sample_image_path) if self.sample_image_path else "Not selected"
         if hasattr(self, 'sample_image_path_label'):
             self.sample_image_path_label.setText(f"Current image: {current_image}")
         if hasattr(self, 'tube_image_summary_label'):
@@ -389,7 +440,7 @@ class InteractivePlot(QMainWindow):
         ))
 
         self.tube_image_summary_label = self.create_status_label(
-            f"Tube detection source: {os.path.basename(self.sample_image_path)}"
+            self.format_selected_path("Tube detection source", self.sample_image_path)
         )
         right_layout.addWidget(self.tube_image_summary_label)
 
@@ -585,9 +636,9 @@ class InteractivePlot(QMainWindow):
         self.load_button_freezing_temperatures.setEnabled(False)
         
         # default setting
-        self.image_directory = '1/data/images/'
-        self.tube_location_file = '1/inner_circles_20241007_134313.pkl'
-        self.temperature_recording_file = '1/data/temperature/CR1000_Sec_1.dat'
+        self.image_directory = None
+        self.tube_location_file = None
+        self.temperature_recording_file = None
     
     def setup_image_cropping_tab(self):
         tab3_layout = QHBoxLayout(self.tab3)
@@ -621,7 +672,7 @@ class InteractivePlot(QMainWindow):
         image_group = QGroupBox("Step 1: Choose Image")
         image_layout = QVBoxLayout(image_group)
 
-        self.sample_image_path_label = QLabel(f"Current image: {os.path.basename(self.sample_image_path)}")
+        self.sample_image_path_label = QLabel(self.format_selected_path("Current image", self.sample_image_path))
         self.sample_image_path_label.setWordWrap(True)
         image_layout.addWidget(self.sample_image_path_label)
 
@@ -724,9 +775,12 @@ class InteractivePlot(QMainWindow):
             if hasattr(self, 'processed_image'):
                 self.img = self.processed_image
             else:
-                if not os.path.exists(self.sample_image_path):
-                    raise FileNotFoundError(f"Image file not found: {self.sample_image_path}")
-                self.img = cv2.imread(self.sample_image_path)
+                self.img = self.load_image_from_path(self.sample_image_path, "Sample image", 1)
+                if self.img is None:
+                    return
+
+            if self.original_image is None:
+                raise ValueError("No source image is loaded. Load an image before running tube detection.")
 
             # Tube detection
             self.pcr_tubes, _ = locate_pcr_tubes(self.img, min_area, circularity_threshold)
@@ -936,8 +990,12 @@ class InteractivePlot(QMainWindow):
             self.log_text_edit2.append("No file selected")
         
     def load_brightness_series(self):
+        if not self.validate_analysis_inputs():
+            return
+
         # Load inner circles first
-        self.load_inner_circles()
+        if not self.load_inner_circles():
+            return
 
         # Disable the start button to prevent multiple threads
         self.start_load_timeseries_button.setEnabled(False)
@@ -1162,8 +1220,12 @@ class InteractivePlot(QMainWindow):
         self.update_freezing_point(xmin, xmax)
 
     def load_crop_image(self):
+        loaded_image = self.load_image_from_path(self.sample_image_path, "Sample image", 1)
+        if loaded_image is None:
+            return
+
         self.ax_crop.clear()
-        self.original_image = cv2.imread(self.sample_image_path)
+        self.original_image = loaded_image
         self.rotated_image = self.original_image.copy()
         img_rgb = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
         self.ax_crop.imshow(img_rgb)
@@ -1310,11 +1372,16 @@ class InteractivePlot(QMainWindow):
 
     def load_inner_circles(self):
         try:
+            if not self.validate_file_path(self.tube_location_file, "Tube locations file", 2):
+                return False
+
             with open(self.tube_location_file, 'rb') as f:
                 self.inner_circles = pickle.load(f)
             self.log_text_edit2.append(f"Loaded {len(self.inner_circles)} inner circles from {self.tube_location_file}")
+            return True
         except Exception as e:
             self.log_text_edit2.append(f"Error loading inner circles: {str(e)}")
+            return False
             
 
 if __name__ == '__main__':
