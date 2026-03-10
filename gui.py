@@ -6,7 +6,8 @@ import pickle
 import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QListWidget, QLineEdit, QSlider, QLabel, QSpinBox, 
-                             QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox)
+                             QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox, QFormLayout,
+                             QSizePolicy)
 from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSignal, QThread, QRectF
 from PyQt5.QtGui import QPixmap, QPainter, QPen
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -114,6 +115,7 @@ class InteractivePlot(QMainWindow):
         super().__init__()
         self.setWindowTitle('Droplet Freezing Assay Offline Analysis')
         self.setGeometry(100, 100, 1400, 800)
+        self.apply_styles()
 
         self.sample_image_path = '1/data/images/2023-04-03_16-05-57.png'
 
@@ -124,15 +126,18 @@ class InteractivePlot(QMainWindow):
 
         # 创建标签页
         self.tab_widget = QTabWidget()
+        self.tab_widget.setUsesScrollButtons(True)
+        self.tab_widget.setElideMode(Qt.ElideNone)
+        self.tab_widget.tabBar().setExpanding(False)
         main_layout.addWidget(self.tab_widget)
 
         # Create tabs
         self.tab1 = QWidget()
         self.tab2 = QWidget()
         self.tab3 = QWidget()
-        self.tab_widget.addTab(self.tab3, "Image Cropping")
-        self.tab_widget.addTab(self.tab1, "Tube Locating")
-        self.tab_widget.addTab(self.tab2, "Freezing Detection")
+        self.tab_widget.addTab(self.tab3, "1. Prepare Image")
+        self.tab_widget.addTab(self.tab1, "2. Locate Tubes")
+        self.tab_widget.addTab(self.tab2, "3. Analyze Freezing")
 
         # Set up tab layouts
         self.setup_tube_locating_tab()
@@ -165,11 +170,122 @@ class InteractivePlot(QMainWindow):
         elif tab_number == 2:
             self.log_text_edit2.append(message)
 
+    def apply_styles(self):
+        self.setStyleSheet("""
+            QMainWindow {
+                background: #f4f7fb;
+            }
+            QTabWidget::pane {
+                border: 1px solid #d6dde8;
+                background: #ffffff;
+                top: -1px;
+            }
+            QTabBar::tab {
+                background: #e8eef6;
+                border: 1px solid #d6dde8;
+                min-width: 180px;
+                padding: 10px 18px;
+                margin-right: 4px;
+                font-weight: 600;
+            }
+            QTabBar::tab:selected {
+                background: #ffffff;
+                color: #17324d;
+            }
+            QGroupBox {
+                border: 1px solid #d6dde8;
+                border-radius: 8px;
+                margin-top: 12px;
+                padding: 16px 12px 12px 12px;
+                font-weight: 600;
+                color: #17324d;
+                background: #fbfdff;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 4px;
+            }
+            QPushButton {
+                background: #1f6fb2;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 12px;
+                min-height: 22px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: #195d95;
+            }
+            QPushButton:disabled {
+                background: #b8c5d3;
+                color: #eef3f8;
+            }
+            QLineEdit, QTextEdit {
+                border: 1px solid #c9d5e2;
+                border-radius: 6px;
+                padding: 6px;
+                background: #ffffff;
+            }
+            QLabel#tabHeaderTitle {
+                font-size: 18px;
+                font-weight: 700;
+                color: #17324d;
+            }
+            QLabel#tabHeaderDescription {
+                color: #516579;
+                line-height: 1.4;
+            }
+            QLabel#statusLabel {
+                color: #2c4f6f;
+                background: #eef5fb;
+                border: 1px solid #d6e4f2;
+                border-radius: 6px;
+                padding: 8px 10px;
+            }
+            QLabel#hintLabel {
+                color: #516579;
+            }
+        """)
+
+    def create_tab_header(self, title, description):
+        header = QWidget()
+        layout = QVBoxLayout(header)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+
+        title_label = QLabel(title)
+        title_label.setObjectName("tabHeaderTitle")
+
+        description_label = QLabel(description)
+        description_label.setObjectName("tabHeaderDescription")
+        description_label.setWordWrap(True)
+
+        layout.addWidget(title_label)
+        layout.addWidget(description_label)
+        return header
+
+    def create_status_label(self, text):
+        label = QLabel(text)
+        label.setObjectName("statusLabel")
+        label.setWordWrap(True)
+        return label
+
+    def refresh_image_path_labels(self):
+        current_image = os.path.basename(self.sample_image_path)
+        if hasattr(self, 'sample_image_path_label'):
+            self.sample_image_path_label.setText(f"Current image: {current_image}")
+        if hasattr(self, 'tube_image_summary_label'):
+            self.tube_image_summary_label.setText(f"Tube detection source: {current_image}")
+
     def create_selection_group(self, title, button_text, selection_method):
         group = QGroupBox(title)
         layout = QVBoxLayout()
+        layout.setSpacing(8)
         
         button = QPushButton(button_text)
+        button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         button.clicked.connect(selection_method)
         
         label = QLabel("Current: Not selected")
@@ -183,6 +299,8 @@ class InteractivePlot(QMainWindow):
 
     def setup_tube_locating_tab(self):
         tab1_layout = QHBoxLayout(self.tab1)
+        tab1_layout.setContentsMargins(12, 12, 12, 12)
+        tab1_layout.setSpacing(12)
 
         # 创建左侧的图表部件和布局
         left_widget = QWidget()
@@ -200,31 +318,51 @@ class InteractivePlot(QMainWindow):
 
         # 创建右侧的控制面板
         right_widget = QWidget()
+        right_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         right_layout = QVBoxLayout(right_widget)
+        right_layout.setSpacing(12)
 
-        # Image Path
-        # Add refresh button
-        self.refresh_button = QPushButton("Refresh")
+        right_layout.addWidget(self.create_tab_header(
+            "Locate tubes on the prepared image",
+            "Review the cropped image, tune the detection settings, then save the inner-circle positions for the analysis step."
+        ))
+
+        self.tube_image_summary_label = self.create_status_label(
+            f"Tube detection source: {os.path.basename(self.sample_image_path)}"
+        )
+        right_layout.addWidget(self.tube_image_summary_label)
+
+        detection_group = QGroupBox("Detection Settings")
+        detection_layout = QVBoxLayout(detection_group)
+        detection_layout.setSpacing(10)
+
+        self.refresh_button = QPushButton("Refresh Detection")
         self.refresh_button.clicked.connect(self.plot_tube_detection_results)
-        right_layout.addWidget(self.refresh_button)
+        detection_layout.addWidget(self.refresh_button)
 
-        # Tubes Size Input
+        form_layout = QFormLayout()
         self.tubes_size_input = QLineEdit()
-        self.tubes_size_input.setPlaceholderText("Enter tubes size (width, height)")
+        self.tubes_size_input.setPlaceholderText("Example: 10, 8 (rows, columns)")
+        self.tubes_size_input.setToolTip("Enter the tube grid as rows, columns. Example: 10, 8 means 10 rows and 8 columns.")
         self.tubes_size_input.setText('10, 8')
         self.tubes_size_input.textChanged.connect(self.update_tubes_size)
-        right_layout.addWidget(QLabel("Tubes Array Size:"))
-        right_layout.addWidget(self.tubes_size_input)
+        form_layout.addRow("Tubes array size (rows, columns):", self.tubes_size_input)
 
-        # Rotate Input
+        tubes_size_hint = QLabel("Example: 10, 8 means 10 rows and 8 columns.")
+        tubes_size_hint.setObjectName("hintLabel")
+        tubes_size_hint.setWordWrap(True)
+        form_layout.addRow("", tubes_size_hint)
+
         self.rotation_input = QLineEdit()
         self.rotation_input.setPlaceholderText("Enter rotation value")
         self.rotation_input.setText('auto')
         self.rotation_input.textChanged.connect(self.schedule_update)
-        right_layout.addWidget(QLabel("Rotation (+ for counter-clockwise):"))
-        right_layout.addWidget(self.rotation_input)
+        form_layout.addRow("Grid rotation:", self.rotation_input)
+        detection_layout.addLayout(form_layout)
 
-        # Min Area
+        min_area_group = QWidget()
+        min_area_layout = QVBoxLayout(min_area_group)
+        min_area_layout.setContentsMargins(0, 0, 0, 0)
         self.min_area_slider = QSlider(Qt.Horizontal)
         self.min_area_slider.setMinimum(10)
         self.min_area_slider.setMaximum(1500)
@@ -232,10 +370,13 @@ class InteractivePlot(QMainWindow):
         self.min_area_slider.setValue(800)
         self.min_area_label = QLabel("Min Area: 800")
         self.min_area_slider.valueChanged.connect(self.update_min_area)
-        right_layout.addWidget(self.min_area_label)
-        right_layout.addWidget(self.min_area_slider)
+        min_area_layout.addWidget(self.min_area_label)
+        min_area_layout.addWidget(self.min_area_slider)
+        detection_layout.addWidget(min_area_group)
 
-        # Circularity
+        circularity_group = QWidget()
+        circularity_layout = QVBoxLayout(circularity_group)
+        circularity_layout.setContentsMargins(0, 0, 0, 0)
         self.circularity_slider = QSlider(Qt.Horizontal)
         self.circularity_slider.setMinimum(10)
         self.circularity_slider.setMaximum(100)
@@ -243,32 +384,43 @@ class InteractivePlot(QMainWindow):
         self.circularity_slider.setValue(20)
         self.circularity_label = QLabel("Circularity: 0.20")
         self.circularity_slider.valueChanged.connect(self.update_circularity)
-        right_layout.addWidget(self.circularity_label)
-        right_layout.addWidget(self.circularity_slider)
+        circularity_layout.addWidget(self.circularity_label)
+        circularity_layout.addWidget(self.circularity_slider)
+        detection_layout.addWidget(circularity_group)
+        right_layout.addWidget(detection_group)
 
-        # 添加保存按钮
+        review_group = QGroupBox("Manual Review")
+        review_layout = QVBoxLayout(review_group)
+        review_hint = QLabel("Left click removes an inner circle. Right click adds a new one.")
+        review_hint.setObjectName("hintLabel")
+        review_hint.setWordWrap(True)
+        review_layout.addWidget(review_hint)
+
         self.save_button = QPushButton("Save Inner Circles")
         self.save_button.clicked.connect(self.save_inner_circles)
-        right_layout.addWidget(self.save_button)
+        review_layout.addWidget(self.save_button)
+        right_layout.addWidget(review_group)
 
-        # 添加文本框
+        log_group = QGroupBox("Detection Log")
+        log_layout = QVBoxLayout(log_group)
         self.log_text_edit = QTextEdit()
         self.log_text_edit.setReadOnly(True)
-        right_layout.addWidget(QLabel("Log:"))
-        right_layout.addWidget(self.log_text_edit, 1)  # 添加拉伸因子
+        log_layout.addWidget(self.log_text_edit)
+        right_layout.addWidget(log_group, 1)
         
-        # 拉伸一下
-        right_layout.setSpacing(10)
+        right_layout.addStretch(1)
 
         # 将部件添加到主布局
-        tab1_layout.addWidget(left_widget, 2)
-        tab1_layout.addWidget(right_widget, 1)
+        tab1_layout.addWidget(left_widget, 3)
+        tab1_layout.addWidget(right_widget, 2)
         
         # 重定向输出
         sys.stdout = StreamToTextEdit(self.update_log_signal, 1)
 
     def setup_freezing_detection_tab(self):
         tab2_layout = QHBoxLayout(self.tab2)
+        tab2_layout.setContentsMargins(12, 12, 12, 12)
+        tab2_layout.setSpacing(12)
 
         # 创建左侧的图表部件
         left_widget = QWidget()
@@ -283,35 +435,38 @@ class InteractivePlot(QMainWindow):
 
         # 创建右侧的控制面板
         right_widget = QWidget()
+        right_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         right_layout = QVBoxLayout(right_widget)
+        right_layout.setSpacing(12)
 
-        # 文件夹选择
+        right_layout.addWidget(self.create_tab_header(
+            "Review freezing events tube by tube",
+            "Choose the required input files, run the timeseries analysis, then inspect or correct the freezing point for each tube."
+        ))
+
+        input_group = QGroupBox("Analysis Inputs")
+        input_layout = QVBoxLayout(input_group)
+
         image_dir_group, self.image_directory_label = self.create_selection_group(
-            "Image Directory", "Select", self.select_image_directory)
-        right_layout.addWidget(image_dir_group)
+            "Image Directory", "Select Images Folder", self.select_image_directory)
+        input_layout.addWidget(image_dir_group)
 
-        # 文件选择1
         temp_rec_group, self.temperature_recording_label = self.create_selection_group(
-            "Temperature Recording", "Select", self.select_temperature_recording)
-        right_layout.addWidget(temp_rec_group)
+            "Temperature Recording", "Select Temperature File", self.select_temperature_recording)
+        input_layout.addWidget(temp_rec_group)
 
-        # 文件选择2
         tube_loc_group, self.tube_locations_label = self.create_selection_group(
-            "Tube Locations", "Select", self.select_tube_locations)
-        right_layout.addWidget(tube_loc_group)
+            "Tube Locations", "Select Tube Locations", self.select_tube_locations)
+        input_layout.addWidget(tube_loc_group)
         
-        # Add a start button
-        self.start_load_timeseries_button = QPushButton("Start Analysis")
+        self.start_load_timeseries_button = QPushButton("Run Analysis")
         self.start_load_timeseries_button.clicked.connect(self.load_brightness_series)
-        right_layout.addWidget(self.start_load_timeseries_button)
-        
-        # Add a separator
-        separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)
-        separator.setFrameShadow(QFrame.Sunken)
-        right_layout.addWidget(separator)
+        input_layout.addWidget(self.start_load_timeseries_button)
+        right_layout.addWidget(input_group)
 
-        # 上一个和下一个按钮
+        review_group = QGroupBox("Tube Review")
+        review_layout = QVBoxLayout(review_group)
+
         button_layout = QHBoxLayout()
         self.prev_button = QPushButton("Previous")
         self.next_button = QPushButton("Next")
@@ -322,32 +477,35 @@ class InteractivePlot(QMainWindow):
         button_layout.addWidget(self.prev_button)
         button_layout.addWidget(self.next_button)
         button_layout.addWidget(self.discard_button)
-        right_layout.addLayout(button_layout)
+        review_layout.addLayout(button_layout)
 
-        # 输入框
         self.value_input = QLineEdit()
         self.value_input.setPlaceholderText("Enter tube number")
         self.value_input.returnPressed.connect(self.go_to_tube)
-        right_layout.addWidget(QLabel("Go to tube:"))
-        right_layout.addWidget(self.value_input)
+        review_layout.addWidget(QLabel("Go to tube:"))
+        review_layout.addWidget(self.value_input)
+        right_layout.addWidget(review_group)
 
-        # 保存按钮
+        export_group = QGroupBox("Import / Export")
+        export_layout = QVBoxLayout(export_group)
         self.save_button_freezing_temperatures = QPushButton("Save Freezing Temperatures")
         self.save_button_freezing_temperatures.clicked.connect(self.save_freezing_events_data)
         self.load_button_freezing_temperatures = QPushButton("Load Freezing Temperatures")
         self.load_button_freezing_temperatures.clicked.connect(self.load_freezing_events_data)
-        right_layout.addWidget(self.save_button_freezing_temperatures)
-        right_layout.addWidget(self.load_button_freezing_temperatures)
+        export_layout.addWidget(self.save_button_freezing_temperatures)
+        export_layout.addWidget(self.load_button_freezing_temperatures)
+        right_layout.addWidget(export_group)
 
-        # 日志窗口
+        log_group = QGroupBox("Analysis Log")
+        log_layout = QVBoxLayout(log_group)
         self.log_text_edit2 = QTextEdit()
         self.log_text_edit2.setReadOnly(True)
-        right_layout.addWidget(QLabel("Log:"))
-        right_layout.addWidget(self.log_text_edit2, 1)
+        log_layout.addWidget(self.log_text_edit2)
+        right_layout.addWidget(log_group, 1)
 
         # 将部件添加到主布局
-        tab2_layout.addWidget(left_widget, 2)
-        tab2_layout.addWidget(right_widget, 1)
+        tab2_layout.addWidget(left_widget, 3)
+        tab2_layout.addWidget(right_widget, 2)
         
         # Disable controls initially
         self.prev_button.setEnabled(False)
@@ -363,6 +521,8 @@ class InteractivePlot(QMainWindow):
     
     def setup_image_cropping_tab(self):
         tab3_layout = QHBoxLayout(self.tab3)
+        tab3_layout.setContentsMargins(12, 12, 12, 12)
+        tab3_layout.setSpacing(12)
 
         # Create matplotlib figure and canvas
         left_widget = QWidget()
@@ -376,43 +536,67 @@ class InteractivePlot(QMainWindow):
 
         # Create control panel
         control_widget = QWidget()
+        control_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         control_layout = QVBoxLayout(control_widget)
+        control_layout.setSpacing(12)
+
+        control_layout.addWidget(self.create_tab_header(
+            "Prepare the image before tube detection",
+            "Select a source image, adjust its angle if needed, then crop the useful region before moving to tube detection."
+        ))
+
+        image_group = QGroupBox("Step 1: Choose Image")
+        image_layout = QVBoxLayout(image_group)
 
         self.sample_image_path_label = QLabel(f"Current image: {os.path.basename(self.sample_image_path)}")
-        control_layout.addWidget(self.sample_image_path_label)
+        self.sample_image_path_label.setWordWrap(True)
+        image_layout.addWidget(self.sample_image_path_label)
 
         self.sample_image_path_button = QPushButton("Select an Image")
         self.sample_image_path_button.clicked.connect(self.select_sample_image_path)
-        control_layout.addWidget(self.sample_image_path_button)
+        image_layout.addWidget(self.sample_image_path_button)
 
-        # Add load image button
         self.load_crop_image_button = QPushButton("Load Image")
         self.load_crop_image_button.clicked.connect(self.load_crop_image)
-        control_layout.addWidget(self.load_crop_image_button)
+        image_layout.addWidget(self.load_crop_image_button)
+        control_layout.addWidget(image_group)
 
-        # Add rotation input
+        rotation_group = QGroupBox("Step 2: Adjust Rotation")
+        rotation_group_layout = QVBoxLayout(rotation_group)
         rotation_layout = QHBoxLayout()
         self.rotation_input_crop = QLineEdit()
-        self.rotation_input_crop.setPlaceholderText("Rotation angle (degrees)")
+        self.rotation_input_crop.setPlaceholderText("Example: 2.5 or -2.5 degrees")
+        self.rotation_input_crop.setToolTip("Positive values rotate counter-clockwise. Negative values rotate clockwise.")
         self.rotation_input_crop.setText('0')
-        rotation_layout.addWidget(QLabel("Rotation (+ for counter-clockwise):"))
+        rotation_layout.addWidget(QLabel("Rotation angle (degrees):"))
         rotation_layout.addWidget(self.rotation_input_crop)
-        control_layout.addLayout(rotation_layout)
+        rotation_group_layout.addLayout(rotation_layout)
 
-        # Add apply rotation button
-        self.apply_rotation_button = QPushButton("Apply Rotation")
+        rotation_hint = QLabel("Use positive values for counter-clockwise rotation and negative values for clockwise rotation. Example: 2.5 or -2.5.")
+        rotation_hint.setObjectName("hintLabel")
+        rotation_hint.setWordWrap(True)
+        rotation_group_layout.addWidget(rotation_hint)
+
+        self.apply_rotation_button = QPushButton("Rotate Image")
         self.apply_rotation_button.clicked.connect(self.apply_rotation)
-        control_layout.addWidget(self.apply_rotation_button)
+        rotation_group_layout.addWidget(self.apply_rotation_button)
+        control_layout.addWidget(rotation_group)
 
-        # Add apply crop button
+        crop_group = QGroupBox("Step 3: Crop And Continue")
+        crop_layout = QVBoxLayout(crop_group)
+        crop_hint = QLabel("Drag a rectangle on the image. Apply Crop will switch to the tube detection tab.")
+        crop_hint.setObjectName("hintLabel")
+        crop_hint.setWordWrap(True)
+        crop_layout.addWidget(crop_hint)
+
         self.apply_crop_button = QPushButton("Apply Crop")
         self.apply_crop_button.clicked.connect(self.apply_crop)
-        control_layout.addWidget(self.apply_crop_button)
+        crop_layout.addWidget(self.apply_crop_button)
 
-        # Add restore original image button
         self.restore_image_button = QPushButton("Restore Original Image")
         self.restore_image_button.clicked.connect(self.restore_original_image)
-        control_layout.addWidget(self.restore_image_button)
+        crop_layout.addWidget(self.restore_image_button)
+        control_layout.addWidget(crop_group)
 
         # Store original image
         self.original_image = None
@@ -421,15 +605,15 @@ class InteractivePlot(QMainWindow):
         control_layout.addStretch(1)
 
         # Add widgets to main layout
-        tab3_layout.addWidget(left_widget, 2)
-        tab3_layout.addWidget(control_widget, 1)
+        tab3_layout.addWidget(left_widget, 3)
+        tab3_layout.addWidget(control_widget, 2)
 
     
     def select_sample_image_path(self):
         file, _ = QFileDialog.getOpenFileName(self, "Select an Image")
         if file:
             self.sample_image_path = file
-            self.sample_image_path_label.setText(f"Current image: {os.path.basename(self.sample_image_path)}")
+            self.refresh_image_path_labels()
             self.log_text_edit.append(f"Selected image: {file}")
             self.load_crop_image()
 
@@ -569,12 +753,12 @@ class InteractivePlot(QMainWindow):
 
     def update_tubes_size(self, text):
         try:
-            width, height = map(int, text.split(','))
-            self.tubes_size = (width, height)
+            rows, columns = map(int, text.split(','))
+            self.tubes_size = (rows, columns)
             self.schedule_update()
             print(f"Tubes Size updated to {self.tubes_size}")
         except ValueError:
-            self.log_text_edit.append("Invalid input for tubes size. Please enter two integers separated by a comma.")
+            self.log_text_edit.append("Invalid input for tubes size. Please enter rows and columns as two integers separated by a comma.")
 
     def save_inner_circles(self):
         default_filename = f"inner_circles_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
