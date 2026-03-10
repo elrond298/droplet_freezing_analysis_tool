@@ -1,15 +1,11 @@
 
-# Overview
+# CircleDetection
 
-This software is intended to simplify the process of droplet freezing experiment freezing temperature detection.
+CircleDetection is a desktop tool for droplet-freezing assay analysis. It provides a GUI workflow for preparing images, locating PCR tubes, extracting brightness timeseries, and reviewing freezing temperatures tube by tube.
 
-## Installation
+## Quick Start
 
-Follow one of these installation method below to create the environment.
-
-### Using uv
-
-If you use `uv`, install `uv`, create the project environment from `pyproject.toml`, and run the GUI with:
+If you already use `uv`, the shortest setup is:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -20,53 +16,76 @@ uv run python gui.py
 
 If `uv` is already installed, you only need the last three commands.
 
-### Using Conda
+## Installation
 
-To install the required packages using Conda, you can create a new environment from the `environment.yml` file. Run the following commands:
+Choose one environment setup method.
+
+### uv
+
+Use the dependencies defined in `pyproject.toml`:
+
+```bash
+uv python install 3.14
+uv sync
+uv run python gui.py
+```
+
+### Conda
+
+Create the environment from `environment.yml`:
 
 ```bash
 conda env create -f environment.yml
 conda activate inp
+python3 gui.py
 ```
 
-### Using Virtual Environment (venv)
+### Virtual Environment (venv)
 
-To install the required packages using a virtual environment, you can create a new virtual environment and install the dependencies from the `requirements.txt` file. Run the following commands:
+Create a virtual environment and install from `requirements.txt`:
 
 ```bash
 python3 -m venv myenv
 source myenv/bin/activate
 pip install -r requirements.txt
-```
-
-## Usage
-
-start the gui by:
-
-``` python
 python3 gui.py
 ```
 
-Then follow the instructions in `usage/使用说明.pdf` to complete the recognition.
+## GUI Workflow
 
-## GUI Overview
+Launch the application with:
 
-The desktop GUI provides a complete workflow for droplet-freezing analysis:
+```python
+python3 gui.py
+```
 
-- `Prepare Image`: load a source image, rotate it if needed, and crop the useful region before tube detection.
-- `Locate Tubes`: detect PCR tubes, tune detection settings such as minimum area and circularity, manually review inner circles, and save the detected inner-circle positions.
-- `Analyze Freezing`: load the image folder, temperature recording, and saved tube locations, run the timeseries analysis, review each tube one by one, and save or reload freezing-temperature results.
-- `Settings`: adjust UI font size and review available keyboard shortcuts.
+Then follow the workflow in the GUI or the additional usage notes in `usage/使用说明.pdf`.
 
-Additional GUI behavior:
+### Main Tabs
 
-- Selection paths are cached between sessions for the sample image, image directory, temperature file, and tube-location file.
-- Each major workflow tab includes its own log panel for progress messages and errors.
-- Keyboard shortcuts are available for tab switching and font-size changes, including `Ctrl+1` to `Ctrl+4`, `Ctrl+,`, `Ctrl+=`, `Ctrl+-`, and `Ctrl+0`.
+- `Prepare Image`: load a source image, rotate it if needed, and crop the region that should be used for tube detection.
+- `Locate Tubes`: detect PCR tubes, adjust detection parameters such as minimum area and circularity, manually review inner circles, and save the tube locations.
+- `Analyze Freezing`: load the image directory, temperature recording, and saved tube locations, run the analysis, inspect each tube, and save or reload freezing-temperature results.
+- `Settings`: adjust UI font size and review keyboard shortcuts.
 
-## Qt Version
+### GUI Features
 
-The GUI now targets PyQt6. If you are updating an existing virtual environment, reinstall the Qt dependency with:
+- Selection paths are cached between sessions in `.gui_selection_cache.json`.
+- Each workflow tab includes its own log panel for progress updates and errors.
+- Inner-circle positions can be exported and reused in the analysis step.
+- Freezing-temperature results can be saved and loaded later.
+
+### Keyboard Shortcuts
+
+- `Ctrl+1` to `Ctrl+4`: switch between the main tabs.
+- `Ctrl+,`: open the Settings tab.
+- `Ctrl+=` or `Ctrl++`: increase font size.
+- `Ctrl+-`: decrease font size.
+- `Ctrl+0`: reset font size.
+
+## Qt and Platform Notes
+
+The GUI targets PyQt6. If you are updating an existing virtual environment, reinstall the Qt dependency with:
 
 ```bash
 pip install --upgrade PyQt6
@@ -81,4 +100,4 @@ sudo apt update
 sudo apt install libxcb-cursor0
 ```
 
-On Debian/Ubuntu systems, this is required by Qt 6.5+ for the `xcb` platform plugin.
+On Debian and Ubuntu systems, this is required by Qt 6.5+ for the `xcb` platform plugin.
