@@ -216,9 +216,10 @@ class InteractivePlot(QMainWindow):
         scroll_area.setWidget(content_widget)
         return scroll_area
 
-    def configure_figure_padding(self, figure, image_mode=False):
+    def configure_figure_padding(self, figure, image_mode=False, reserve_title_space=False):
         if image_mode:
-            figure.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.01)
+            top_padding = 0.97 if reserve_title_space else 0.99
+            figure.subplots_adjust(left=0.01, right=0.99, top=top_padding, bottom=0.01)
         else:
             figure.subplots_adjust(left=0.10, right=0.98, top=0.94, bottom=0.12)
 
@@ -461,7 +462,7 @@ class InteractivePlot(QMainWindow):
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(4)
         self.figure = Figure(figsize=(5, 4), dpi=100)
-        self.configure_figure_padding(self.figure, image_mode=True)
+        self.configure_figure_padding(self.figure, image_mode=True, reserve_title_space=True)
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = NavigationToolbar(self.canvas, self)
         left_layout.addWidget(self.toolbar)
@@ -510,10 +511,17 @@ class InteractivePlot(QMainWindow):
         form_layout.addRow("", tubes_size_hint)
 
         self.rotation_input = QLineEdit()
-        self.rotation_input.setPlaceholderText("Enter rotation value")
+        self.rotation_input.setPlaceholderText("auto or degrees, e.g. -1.5")
+        self.rotation_input.setToolTip("Use 'auto' to estimate the tube-grid angle, or enter degrees manually. Positive values rotate counter-clockwise and negative values rotate clockwise.")
         self.rotation_input.setText('auto')
         self.rotation_input.textChanged.connect(self.schedule_update)
         form_layout.addRow("Grid rotation:", self.rotation_input)
+
+        rotation_hint = QLabel("Use 'auto' to estimate the tube-grid angle. You can also enter degrees manually: positive values rotate counter-clockwise, negative values rotate clockwise.")
+        rotation_hint.setObjectName("hintLabel")
+        rotation_hint.setWordWrap(True)
+        form_layout.addRow("", rotation_hint)
+
         detection_layout.addLayout(form_layout)
 
         min_area_group = QWidget()
@@ -857,7 +865,10 @@ class InteractivePlot(QMainWindow):
                     cv2.circle(img_with_tubes, (inner_circle['x'], inner_circle['y']), inner_circle['radius'], (0, 0, 0), 1)
 
             self.ax.imshow(cv2.cvtColor(img_with_tubes, cv2.COLOR_BGR2RGB))
-            self.ax.set_title(f"Detected PCR Tubes: {len(self.pcr_tubes)}, Inferred: {len(self.all_tubes) - len(self.pcr_tubes)}")
+            self.ax.set_title(
+                f"Detected PCR Tubes: {len(self.pcr_tubes)}, Inferred: {len(self.all_tubes) - len(self.pcr_tubes)}",
+                pad=12,
+            )
             self.ax.axis('off')
 
             self.append_log_message(
@@ -925,7 +936,10 @@ class InteractivePlot(QMainWindow):
             cv2.circle(img_with_tubes, (circle['x'], circle['y']), circle['radius'], (0, 0, 0), 1)
 
         self.ax.imshow(cv2.cvtColor(img_with_tubes, cv2.COLOR_BGR2RGB))
-        self.ax.set_title(f"PCR Tubes: {len(self.pcr_tubes)}, Inner Circles: {len(self.inner_circles)}")
+        self.ax.set_title(
+            f"PCR Tubes: {len(self.pcr_tubes)}, Inner Circles: {len(self.inner_circles)}",
+            pad=12,
+        )
         self.ax.axis('off')
         self.canvas.draw()
         self.append_log_message(
