@@ -9,7 +9,7 @@ import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QListWidget, QLineEdit, QSlider, QLabel, QSpinBox, 
                              QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox, QFormLayout,
-                             QSizePolicy, QScrollArea)
+                             QSizePolicy, QScrollArea, QProgressBar)
 from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSignal, QThread, QRectF
 from PyQt5.QtGui import QPixmap, QPainter, QPen, QTextCursor
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -98,6 +98,7 @@ class BrightnessWorker(QObject):
             self.image_directory, 
             self.tube_location_file, 
             temperature_recordings,
+            progress_callback=lambda value: self.progress.emit(value),
             log_callback=lambda msg: self.log.emit(msg)  # Pass the log signal as a callback
         )
         
@@ -702,6 +703,13 @@ class InteractivePlot(QMainWindow):
         self.start_load_timeseries_button = QPushButton("Run Analysis")
         self.start_load_timeseries_button.clicked.connect(self.load_brightness_series)
         input_layout.addWidget(self.start_load_timeseries_button)
+
+        self.analysis_progress_bar = QProgressBar()
+        self.analysis_progress_bar.setRange(0, 100)
+        self.analysis_progress_bar.setValue(0)
+        self.analysis_progress_bar.setFormat("Idle")
+        input_layout.addWidget(self.analysis_progress_bar)
+
         right_layout.addWidget(input_group)
 
         review_group = QGroupBox("Tube Review")
@@ -1195,6 +1203,8 @@ class InteractivePlot(QMainWindow):
 
         # Disable the start button to prevent multiple threads
         self.start_load_timeseries_button.setEnabled(False)
+        self.analysis_progress_bar.setValue(0)
+        self.analysis_progress_bar.setFormat("Loading brightness timeseries... %p%")
         
         # Create a QThread object
         self.thread = QThread()
@@ -1222,11 +1232,13 @@ class InteractivePlot(QMainWindow):
         )
     
     def update_progress(self, value):
-        self.append_log_message(f"Progress: {value}%", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
+        self.analysis_progress_bar.setValue(max(0, min(100, value)))
 
     def process_results(self, temperature_recordings, brightness_timeseries):
         self.temperature_recordings = temperature_recordings
         self.brightness_timeseries = brightness_timeseries
+        self.analysis_progress_bar.setValue(100)
+        self.analysis_progress_bar.setFormat("Analysis completed (%p%)")
         self.freezing_temperatures = get_freezing_temperature(
             self.temperature_recordings,
             self.brightness_timeseries

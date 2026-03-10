@@ -129,7 +129,7 @@ def process_image(args, calculate_overall_brightness=False):
 
     return result
 
-def load_brightness_timeseries(image_directory, tube_location, temperature_recordings, use_filename_timestamp=True, log_callback=None):
+def load_brightness_timeseries(image_directory, tube_location, temperature_recordings, use_filename_timestamp=True, progress_callback=None, log_callback=None):
     """
     Loads and processes brightness timeseries data from image files.
 
@@ -138,6 +138,7 @@ def load_brightness_timeseries(image_directory, tube_location, temperature_recor
         tube_location (str): Path to the file containing tube locations.
         temperature_recordings (pd.DataFrame): DataFrame containing temperature recordings.
         use_filename_timestamp (bool): Whether to use the filename timestamp or file modification time.
+        progress_callback (function): Optional callback function for reporting progress as an integer percentage.
         log_callback (function): Optional callback function for logging messages.
 
     Returns:
@@ -149,6 +150,10 @@ def load_brightness_timeseries(image_directory, tube_location, temperature_recor
             log_callback(message)
         else:
             print(message)
+
+    def report_progress(value):
+        if progress_callback:
+            progress_callback(int(max(0, min(100, value))))
             
     with open(tube_location, 'rb') as f:
         tube_locations = pickle.load(f)
@@ -164,14 +169,22 @@ def load_brightness_timeseries(image_directory, tube_location, temperature_recor
                  for image_file in image_files]
 
     total_images = len(args_list)
+    report_progress(10)
     log(f"Starting to process {total_images} images")
 
     second_brightness = defaultdict(lambda: defaultdict(list))
+    last_reported_progress = 10
     with mp.Pool() as pool:
         for i, result in enumerate(pool.imap_unordered(process_image, args_list, chunksize=10)):
             if i % 100 == 0:
                 progress = int((i / total_images) * 95)
                 log(f"Processed {i} / {total_images} images ({progress}%)")
+
+            processed_images = i + 1
+            progress = 10 + int((processed_images / total_images) * 85)
+            if progress > last_reported_progress:
+                report_progress(progress)
+                last_reported_progress = progress
             
             if result is not None:
                 for timestamp, brightness_dict in result.items():
@@ -179,6 +192,7 @@ def load_brightness_timeseries(image_directory, tube_location, temperature_recor
                         second_brightness[timestamp][tube_id].append(brightness)
 
     log("Image processing complete. Calculating average brightness...")
+    report_progress(98)
 
     brightness_timeseries = {'timestamp': []}
     for i in range(len(tube_locations)):
@@ -197,6 +211,7 @@ def load_brightness_timeseries(image_directory, tube_location, temperature_recor
     brightness_timeseries['timestamp'] = pd.to_datetime(brightness_timeseries['timestamp'])
 
     log("Brightness time series calculation complete")
+    report_progress(100)
     return brightness_timeseries
 
 def get_freezing_temperature(temperature_recordings, brightness_timeseries):
