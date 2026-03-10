@@ -1,6 +1,7 @@
 import sys
 import os
 import html
+import json
 import numpy as np
 import pandas as pd
 import pickle
@@ -130,12 +131,17 @@ class InteractivePlot(QMainWindow):
         LOG_LEVEL_WARNING: {"label": "WARNING", "badge": "#c17c00", "text": "#7a4f00"},
         LOG_LEVEL_ERROR: {"label": "ERROR", "badge": "#c0392b", "text": "#7b241c"},
     }
+    SELECTION_CACHE_FILENAME = ".gui_selection_cache.json"
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Droplet Freezing Assay Offline Analysis')
         self.configure_window_for_screen()
         self.apply_styles()
+        self.selection_cache_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            self.SELECTION_CACHE_FILENAME,
+        )
 
         self.sample_image_path = None
 
@@ -173,16 +179,16 @@ class InteractivePlot(QMainWindow):
         self.pcr_tubes = []
         self.inner_circles = []
         self.img = None
-
-        # 绘制初始图表
         self.crop_region = None
         self.crop_selector = None
+        self.tubes_size = (10, 8)
+
+        self.restore_cached_selections()
+
+        # 绘制初始图表
         self.plot_tube_detection_results()
         
         self.update_log_signal.connect(self.update_log)
-
-        # Initialize tubes size
-        self.tubes_size = (10, 8)
 
     def configure_window_for_screen(self):
         screen = QApplication.primaryScreen()
@@ -432,6 +438,71 @@ class InteractivePlot(QMainWindow):
             self.sample_image_path_label.setText(f"Current image: {current_image}")
         if hasattr(self, 'tube_image_summary_label'):
             self.tube_image_summary_label.setText(f"Tube detection source: {current_image}")
+
+    def refresh_analysis_input_labels(self):
+        if hasattr(self, 'image_directory_label'):
+            self.image_directory_label.setText(self.format_selected_path("Current", self.image_directory))
+        if hasattr(self, 'temperature_recording_label'):
+            self.temperature_recording_label.setText(self.format_selected_path("Current", self.temperature_recording_file))
+        if hasattr(self, 'tube_locations_label'):
+            self.tube_locations_label.setText(self.format_selected_path("Current", self.tube_location_file))
+
+    def load_selection_cache(self):
+        if not os.path.isfile(self.selection_cache_path):
+            return {}
+
+        try:
+            with open(self.selection_cache_path, 'r', encoding='utf-8') as cache_file:
+                cached_data = json.load(cache_file)
+        except (OSError, json.JSONDecodeError):
+            return {}
+
+        return cached_data if isinstance(cached_data, dict) else {}
+
+    def save_selection_cache(self):
+        cached_data = {
+            'sample_image_path': self.sample_image_path,
+            'image_directory': self.image_directory,
+            'temperature_recording_file': self.temperature_recording_file,
+            'tube_location_file': self.tube_location_file,
+        }
+        temp_cache_path = f"{self.selection_cache_path}.tmp"
+
+        try:
+            with open(temp_cache_path, 'w', encoding='utf-8') as cache_file:
+                json.dump(cached_data, cache_file, indent=2)
+            os.replace(temp_cache_path, self.selection_cache_path)
+        except OSError:
+            if os.path.exists(temp_cache_path):
+                try:
+                    os.remove(temp_cache_path)
+                except OSError:
+                    pass
+
+    def restore_cached_selections(self):
+        cached_data = self.load_selection_cache()
+
+        sample_image_path = cached_data.get('sample_image_path')
+        if isinstance(sample_image_path, str) and os.path.isfile(sample_image_path):
+            self.sample_image_path = sample_image_path
+
+        image_directory = cached_data.get('image_directory')
+        if isinstance(image_directory, str) and os.path.isdir(image_directory):
+            self.image_directory = image_directory
+
+        temperature_recording_file = cached_data.get('temperature_recording_file')
+        if isinstance(temperature_recording_file, str) and os.path.isfile(temperature_recording_file):
+            self.temperature_recording_file = temperature_recording_file
+
+        tube_location_file = cached_data.get('tube_location_file')
+        if isinstance(tube_location_file, str) and os.path.isfile(tube_location_file):
+            self.tube_location_file = tube_location_file
+
+        self.refresh_image_path_labels()
+        self.refresh_analysis_input_labels()
+
+        if self.sample_image_path:
+            self.load_crop_image()
 
     def create_selection_group(self, title, button_text, selection_method):
         group = QGroupBox(title)
@@ -799,6 +870,7 @@ class InteractivePlot(QMainWindow):
         if file:
             self.sample_image_path = file
             self.refresh_image_path_labels()
+            self.save_selection_cache()
             self.append_log_message(f"Selected image: {file}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
             self.load_crop_image()
 
@@ -806,21 +878,24 @@ class InteractivePlot(QMainWindow):
         folder = QFileDialog.getExistingDirectory(self, "Select Image Directory")
         if folder:
             self.image_directory = folder
-            self.image_directory_label.setText(f"Current: {os.path.basename(folder)}")
+            self.refresh_analysis_input_labels()
+            self.save_selection_cache()
             self.append_log_message(f"Image directory selected: {folder}", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
 
     def select_temperature_recording(self):
         file, _ = QFileDialog.getOpenFileName(self, "Select Temperature Recording")
         if file:
             self.temperature_recording_file = file
-            self.temperature_recording_label.setText(f"Current: {os.path.basename(file)}")
+            self.refresh_analysis_input_labels()
+            self.save_selection_cache()
             self.append_log_message(f"Temperature recording selected: {file}", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
 
     def select_tube_locations(self):
         file, _ = QFileDialog.getOpenFileName(self, "Select Tube Locations")
         if file:
             self.tube_location_file = file
-            self.tube_locations_label.setText(f"Current: {os.path.basename(file)}")
+            self.refresh_analysis_input_labels()
+            self.save_selection_cache()
             self.append_log_message(f"Tube locations selected: {file}", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
 
     def plot_tube_detection_results(self):
