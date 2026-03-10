@@ -190,6 +190,8 @@ class InteractivePlot(QMainWindow):
         self.img = None
         self.crop_region = None
         self.crop_selector = None
+        self.processed_image = None
+        self.rotation_params = None
         self.tubes_size = (10, 8)
 
         self.restore_cached_selections()
@@ -887,6 +889,7 @@ class InteractivePlot(QMainWindow):
         # Disable controls initially
         self.prev_button.setEnabled(False)
         self.next_button.setEnabled(False)
+        self.discard_button.setEnabled(False)
         self.value_input.setEnabled(False)
         self.save_button_freezing_temperatures.setEnabled(False)
         self.load_button_freezing_temperatures.setEnabled(False)
@@ -1060,7 +1063,7 @@ class InteractivePlot(QMainWindow):
             rotation = self.rotation_input.text()
 
             # Use the processed image if available, otherwise use the original sample image
-            if hasattr(self, 'processed_image'):
+            if self.processed_image is not None:
                 self.img = self.processed_image
             else:
                 self.img = self.load_image_from_path(self.sample_image_path, "Sample image", self.LOG_TAB_LOCATE)
@@ -1076,7 +1079,7 @@ class InteractivePlot(QMainWindow):
             # Prepare for further processing
             self.inferred_tubes = infer_missing_tubes(
                 self.pcr_tubes,
-                self.original_image.shape,
+                self.img.shape,
                 tubes_size=self.tubes_size,
                 rotate=rotation
             )
@@ -1224,27 +1227,26 @@ class InteractivePlot(QMainWindow):
 
                 # Step 1: Restore to rotated image coordinates
                 # If cropping was applied, add back the crop offsets
-                if hasattr(self, 'crop_region'):
+                if self.crop_region is not None:
                     x_offset, y_offset, _, _ = self.crop_region
                     restored_circle['x'] += x_offset
                     restored_circle['y'] += y_offset
 
                 # Step 2: Rotate back to original image coordinates
-                if hasattr(self, 'rotation_params'):
+                if self.rotation_params is not None:
                     center = self.rotation_params['center']
-                    rotation_angle = self.rotation_params['angle']  # opencv: positive rotation means rotate counter-clockwise
+                    rotation_angle = self.rotation_params['angle']
 
                     # Convert point relative to center
                     x_rel = restored_circle['x'] - center[0]
                     y_rel = restored_circle['y'] - center[1]
 
-                    # Rotate back (negative angle)
-                    cos_theta = np.cos(np.deg2rad(rotation_angle))  # just use the selected value, to do a reverse rotation  
+                    # Apply the inverse of the preview rotation to recover original-image coordinates.
+                    cos_theta = np.cos(np.deg2rad(rotation_angle))
                     sin_theta = np.sin(np.deg2rad(rotation_angle))
 
-                    # Apply inverse rotation
-                    x_restored = x_rel * cos_theta - y_rel * sin_theta
-                    y_restored = x_rel * sin_theta + y_rel * cos_theta
+                    x_restored = x_rel * cos_theta + y_rel * sin_theta
+                    y_restored = -x_rel * sin_theta + y_rel * cos_theta
 
                     # Restore absolute coordinates
                     restored_circle['x'] = int(x_restored + center[0])
@@ -1411,6 +1413,7 @@ class InteractivePlot(QMainWindow):
     def enable_controls(self):
         self.next_button.setEnabled(True)
         self.prev_button.setEnabled(True)
+        self.discard_button.setEnabled(True)
         self.value_input.setEnabled(True)
         self.save_button_freezing_temperatures.setEnabled(True)
         self.load_button_freezing_temperatures.setEnabled(True)
@@ -1429,6 +1432,14 @@ class InteractivePlot(QMainWindow):
         """
         Discard current tube, set the temperature to 0 C
         """
+        if not hasattr(self, 'current_tube_brightness') or not hasattr(self, 'current_tube_timestamps'):
+            self.append_log_message(
+                "No tube data is loaded. Run the analysis before discarding a tube.",
+                self.LOG_TAB_ANALYZE,
+                self.LOG_LEVEL_WARNING,
+            )
+            return
+
         bright_range = self.current_tube_brightness  # already a numpy array
         time_range = self.current_tube_timestamps  # already a numpy array
 
@@ -1621,6 +1632,9 @@ class InteractivePlot(QMainWindow):
         self.ax_crop.clear()
         self.original_image = loaded_image
         self.rotated_image = self.original_image.copy()
+        self.processed_image = None
+        self.crop_region = None
+        self.rotation_params = None
         img_rgb = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
         self.ax_crop.imshow(img_rgb)
         self.ax_crop.axis('off')
@@ -1699,6 +1713,8 @@ class InteractivePlot(QMainWindow):
     def restore_original_image(self):
         if self.original_image is not None:
             self.rotated_image = self.original_image.copy()
+            self.processed_image = None
+            self.rotation_params = None
             self.ax_crop.clear()
             img_rgb = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
             self.ax_crop.imshow(img_rgb)
@@ -1719,6 +1735,7 @@ class InteractivePlot(QMainWindow):
 
             self.canvas_crop.draw()
             self.crop_region = None
+            self.append_log_message("Restored the original image and cleared crop/rotation state.", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
 
     def on_crop_select(self, eclick, erelease):
         x1, y1 = int(eclick.xdata), int(eclick.ydata)
@@ -1749,7 +1766,7 @@ class InteractivePlot(QMainWindow):
             self.append_log_message(f"Cropped image size: {cropped_img.shape[:2]}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
 
             # If rotation was applied, store the rotation parameters
-            if hasattr(self, 'rotation_params'):
+            if self.rotation_params is not None:
                 rotation_angle = self.rotation_params['angle']
                 self.append_log_message(f"Rotation angle: {rotation_angle} degrees", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
 
