@@ -7,7 +7,7 @@ import datetime
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QListWidget, QLineEdit, QSlider, QLabel, QSpinBox, 
                              QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox, QFormLayout,
-                             QSizePolicy)
+                             QSizePolicy, QScrollArea)
 from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSignal, QThread, QRectF
 from PyQt5.QtGui import QPixmap, QPainter, QPen
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -114,7 +114,7 @@ class InteractivePlot(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Droplet Freezing Assay Offline Analysis')
-        self.setGeometry(100, 100, 1400, 800)
+        self.configure_window_for_screen()
         self.apply_styles()
 
         self.sample_image_path = '1/data/images/2023-04-03_16-05-57.png'
@@ -163,6 +163,38 @@ class InteractivePlot(QMainWindow):
 
         # Initialize tubes size
         self.tubes_size = (10, 8)
+
+    def configure_window_for_screen(self):
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            self.setGeometry(100, 100, 1400, 800)
+            self.is_compact_screen = False
+            return
+
+        available_geometry = screen.availableGeometry()
+        available_width = available_geometry.width()
+        available_height = available_geometry.height()
+
+        self.is_compact_screen = available_width <= 1920 or available_height <= 1080
+
+        target_width = max(1200, int(available_width * 0.9))
+        target_height = max(780, int(available_height * 0.88))
+        target_width = min(target_width, available_width)
+        target_height = min(target_height, available_height)
+
+        x_pos = available_geometry.x() + max(0, (available_width - target_width) // 2)
+        y_pos = available_geometry.y() + max(0, (available_height - target_height) // 2)
+
+        self.setGeometry(x_pos, y_pos, target_width, target_height)
+        self.setMinimumSize(1100, 720)
+
+    def create_scrollable_panel(self, content_widget):
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setWidget(content_widget)
+        return scroll_area
         
     def update_log(self, message, tab_number):
         if tab_number == 1:
@@ -410,9 +442,11 @@ class InteractivePlot(QMainWindow):
         
         right_layout.addStretch(1)
 
+        right_scroll_area = self.create_scrollable_panel(right_widget)
+
         # 将部件添加到主布局
-        tab1_layout.addWidget(left_widget, 3)
-        tab1_layout.addWidget(right_widget, 2)
+        tab1_layout.addWidget(left_widget, 5)
+        tab1_layout.addWidget(right_scroll_area, 3)
         
         # 重定向输出
         sys.stdout = StreamToTextEdit(self.update_log_signal, 1)
@@ -503,9 +537,13 @@ class InteractivePlot(QMainWindow):
         log_layout.addWidget(self.log_text_edit2)
         right_layout.addWidget(log_group, 1)
 
+        right_layout.addStretch(1)
+
+        right_scroll_area = self.create_scrollable_panel(right_widget)
+
         # 将部件添加到主布局
-        tab2_layout.addWidget(left_widget, 3)
-        tab2_layout.addWidget(right_widget, 2)
+        tab2_layout.addWidget(left_widget, 5)
+        tab2_layout.addWidget(right_scroll_area, 3)
         
         # Disable controls initially
         self.prev_button.setEnabled(False)
@@ -604,9 +642,11 @@ class InteractivePlot(QMainWindow):
 
         control_layout.addStretch(1)
 
+        control_scroll_area = self.create_scrollable_panel(control_widget)
+
         # Add widgets to main layout
-        tab3_layout.addWidget(left_widget, 3)
-        tab3_layout.addWidget(control_widget, 2)
+        tab3_layout.addWidget(left_widget, 5)
+        tab3_layout.addWidget(control_scroll_area, 3)
 
     
     def select_sample_image_path(self):
@@ -1253,5 +1293,8 @@ class InteractivePlot(QMainWindow):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     main_window = InteractivePlot()
-    main_window.show()
+    if getattr(main_window, 'is_compact_screen', False):
+        main_window.showMaximized()
+    else:
+        main_window.show()
     sys.exit(app.exec_())
