@@ -1,109 +1,62 @@
 import sys
 import os
-import html
-import json
-import numpy as np
-import pandas as pd
-import pickle
-import datetime
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QPushButton, QListWidget, QLineEdit, QSlider, QLabel, QSpinBox, 
+                             QPushButton, QLineEdit, QSlider, QLabel, QSpinBox, 
                              QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox, QFormLayout,
                              QSizePolicy, QScrollArea, QProgressBar)
-from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal, QThread, QRectF
-from PyQt6.QtGui import QPixmap, QPainter, QPen, QTextCursor, QKeySequence, QShortcut
-from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
-from matplotlib.figure import Figure
-from matplotlib.widgets import SpanSelector, RectangleSelector
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QKeySequence, QShortcut
+from matplotlib.widgets import RectangleSelector
 
-from tube_detection import locate_pcr_tubes, calculate_rotation_angle, rotate_point, infer_missing_tubes, detect_inner_circles
-from freezing_detection import load_brightness_timeseries, load_temperature_timeseries, get_freezing_temperature
+from gui_analysis_controller import (
+    discard_current_tube_freezing_point as analysis_discard_current_tube_freezing_point,
+    enable_analysis_review_controls as analysis_enable_analysis_review_controls,
+    load_analysis_inner_circle_locations as analysis_load_analysis_inner_circle_locations,
+    start_brightness_series_analysis as analysis_start_brightness_series_analysis,
+    load_freezing_events_data as analysis_load_freezing_events_data,
+    apply_analysis_results as analysis_apply_analysis_results,
+    save_freezing_events_data as analysis_save_freezing_events_data,
+    refresh_current_tube_brightness_plot as analysis_refresh_current_tube_brightness_plot,
+    refresh_current_tube_freezing_marker as analysis_refresh_current_tube_freezing_marker,
+)
+from gui_detection_controller import (
+    handle_tube_detection_plot_click as detection_handle_tube_detection_plot_click,
+    redraw_manual_tube_detection_plot as detection_redraw_manual_tube_detection_plot,
+    run_tube_detection_and_render_plot as detection_run_tube_detection_and_render_plot,
+    save_detected_inner_circles as detection_save_detected_inner_circles,
+)
+from gui_image_controller import (
+    apply_preparation_image_rotation as image_apply_preparation_image_rotation,
+    apply_selected_crop_to_tube_detection as image_apply_selected_crop_to_tube_detection,
+    load_selected_image_into_preparation_view as image_load_selected_image_into_preparation_view,
+    restore_original_preparation_image as image_restore_original_preparation_image,
+)
+from gui_logging import (
+    append_log_message as logging_append_log_message,
+    format_log_message as logging_format_log_message,
+    get_log_widget as logging_get_log_widget,
+    write_log_entry as logging_write_log_entry,
+)
+from gui_selection_cache import (
+    load_selection_cache as cache_load_selection_cache,
+    refresh_analysis_input_labels as cache_refresh_analysis_input_labels,
+    refresh_image_path_labels as cache_refresh_image_path_labels,
+    restore_cached_selections as cache_restore_cached_selections,
+    save_selection_cache as cache_save_selection_cache,
+)
+from gui_services import (
+    normalize_inner_circles,
+    restore_circle_to_original_image,
+)
+from gui_state import AnalysisState, DetectionState, ImagePrepState, SelectionState
+from gui_tabs import (
+    build_freezing_detection_tab,
+    build_image_cropping_tab,
+    build_settings_tab,
+    build_tube_locating_tab,
+)
+from gui_workers import StreamToTextEdit
 import cv2
-import traceback
-import io
-
-class StreamToTextEdit(io.StringIO):
-    """
-    A custom stream class that redirects output to a QTextEdit widget in a specific tab.
-
-    This class inherits from io.StringIO and overrides the write method to emit a signal
-    with the text to be written and the tab number. This allows the text to be displayed
-    in the appropriate log text edit widget within the specified tab.
-    """
-    def __init__(self, signal, tab_number, level):
-        super().__init__()
-        self.signal = signal
-        self.tab_number = tab_number
-        self.level = level
-
-    def write(self, text):
-        """
-        Writes the given text to the log text edit widget.
-
-        This method emits a signal with the provided text and the tab number to update
-        the log text edit widget in the corresponding tab.
-
-        Args:
-            text (str): The text to be written to the log text edit widget.
-        """
-        normalized_text = text.rstrip()
-        if normalized_text:
-            self.signal.emit(normalized_text, self.tab_number, self.level)
-
-class BrightnessWorker(QObject):
-    """
-    A worker class for processing brightness timeseries data in a separate thread.
-
-    This class is responsible for loading temperature recordings and brightness timeseries
-    data from the specified directories and files. It emits progress updates and logs
-    messages during the process.
-
-    Attributes:
-        finished (pyqtSignal): Signal emitted when the processing is finished, carrying
-                               the temperature recordings and brightness timeseries.
-        progress (pyqtSignal): Signal emitted to update the progress of the processing.
-        log (pyqtSignal): Signal emitted to log messages during the processing.
-    """
-    finished = pyqtSignal(object, object)
-    progress = pyqtSignal(int)
-    log = pyqtSignal(str)
-
-    def __init__(self, image_directory, tube_location_file, temperature_recording_file):
-        """
-        Initializes the BrightnessWorker with the specified directories and files.
-
-        Args:
-            image_directory (str): The directory containing the image files.
-            tube_location_file (str): The file containing the tube locations.
-            temperature_recording_file (str): The file containing the temperature recordings.
-        """
-        super().__init__()
-        self.image_directory = image_directory
-        self.tube_location_file = tube_location_file
-        self.temperature_recording_file = temperature_recording_file
-
-    def run(self):
-        """
-        Executes the main processing logic for loading temperature and brightness timeseries data.
-
-        This method loads the temperature recordings and brightness timeseries data,
-        emits progress updates, and logs messages during the process. Once the processing
-        is complete, it emits the finished signal with the loaded data.
-        """
-        temperature_recordings = load_temperature_timeseries(self.temperature_recording_file)
-        self.progress.emit(5)  # Emit progress update
-        
-        brightness_timeseries = load_brightness_timeseries(
-            self.image_directory, 
-            self.tube_location_file, 
-            temperature_recordings,
-            progress_callback=lambda value: self.progress.emit(value),
-            log_callback=lambda msg: self.log.emit(msg)  # Pass the log signal as a callback
-        )
-        
-        self.progress.emit(100)  # Emit progress update
-        self.finished.emit(temperature_recordings, brightness_timeseries)
         
 class InteractivePlot(QMainWindow):
     """
@@ -120,6 +73,7 @@ class InteractivePlot(QMainWindow):
     LOG_TAB_PREPARE = 1
     LOG_TAB_LOCATE = 2
     LOG_TAB_ANALYZE = 3
+    LOG_TAB_ALL = 0
     LOG_LEVEL_DEBUG = "DEBUG"
     LOG_LEVEL_INFO = "INFO"
     LOG_LEVEL_SUCCESS = "SUCCESS"
@@ -140,15 +94,13 @@ class InteractivePlot(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Droplet Freezing Assay Offline Analysis')
-        self.ui_font_size = self.get_default_font_size()
+        self.initialize_state()
         self.configure_window_for_screen()
         self.apply_styles()
         self.selection_cache_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
             self.SELECTION_CACHE_FILENAME,
         )
-
-        self.sample_image_path = None
 
         # 创建主窗口部件和布局
         central_widget = QWidget()
@@ -177,29 +129,233 @@ class InteractivePlot(QMainWindow):
         self.setup_freezing_detection_tab()
         self.setup_image_cropping_tab()
         self.setup_settings_tab()
+        self.configure_console_redirect()
         self.configure_shortcuts()
 
         # 初始化更新定时器
         self.update_timer = QTimer()
         self.update_timer.setSingleShot(True)
-        self.update_timer.timeout.connect(self.plot_tube_detection_results)
-
-        # 存储 PCR tubes 和 inner circles
-        self.pcr_tubes = []
-        self.inner_circles = []
-        self.img = None
-        self.crop_region = None
-        self.crop_selector = None
-        self.processed_image = None
-        self.rotation_params = None
-        self.tubes_size = (10, 8)
+        self.update_timer.timeout.connect(self.run_tube_detection_and_render_plot)
 
         self.restore_cached_selections()
 
         # 绘制初始图表
-        self.plot_tube_detection_results()
+        self.run_tube_detection_and_render_plot()
         
         self.update_log_signal.connect(self.update_log)
+
+    def configure_console_redirect(self):
+        self.original_stdout = sys.stdout
+        self.original_stderr = sys.stderr
+        sys.stdout = StreamToTextEdit(self.update_log_signal, self.LOG_TAB_ALL, self.LOG_LEVEL_INFO)
+        sys.stderr = StreamToTextEdit(self.update_log_signal, self.LOG_TAB_ALL, self.LOG_LEVEL_ERROR)
+
+    def initialize_state(self):
+        default_font_size = self.get_default_font_size()
+        self.selection_state = SelectionState(ui_font_size=default_font_size)
+        self.image_prep_state = ImagePrepState()
+        self.detection_state = DetectionState()
+        self.analysis_state = AnalysisState()
+
+    @property
+    def ui_font_size(self):
+        return self.selection_state.ui_font_size
+
+    @ui_font_size.setter
+    def ui_font_size(self, value):
+        self.selection_state.ui_font_size = value
+
+    @property
+    def sample_image_path(self):
+        return self.selection_state.sample_image_path
+
+    @sample_image_path.setter
+    def sample_image_path(self, value):
+        self.selection_state.sample_image_path = value
+
+    @property
+    def image_directory(self):
+        return self.selection_state.image_directory
+
+    @image_directory.setter
+    def image_directory(self, value):
+        self.selection_state.image_directory = value
+
+    @property
+    def temperature_recording_file(self):
+        return self.selection_state.temperature_recording_file
+
+    @temperature_recording_file.setter
+    def temperature_recording_file(self, value):
+        self.selection_state.temperature_recording_file = value
+
+    @property
+    def tube_location_file(self):
+        return self.selection_state.tube_location_file
+
+    @tube_location_file.setter
+    def tube_location_file(self, value):
+        self.selection_state.tube_location_file = value
+
+    @property
+    def img(self):
+        return self.image_prep_state.img
+
+    @img.setter
+    def img(self, value):
+        self.image_prep_state.img = value
+
+    @property
+    def original_image(self):
+        return self.image_prep_state.original_image
+
+    @original_image.setter
+    def original_image(self, value):
+        self.image_prep_state.original_image = value
+
+    @property
+    def rotated_image(self):
+        return self.image_prep_state.rotated_image
+
+    @rotated_image.setter
+    def rotated_image(self, value):
+        self.image_prep_state.rotated_image = value
+
+    @property
+    def processed_image(self):
+        return self.image_prep_state.processed_image
+
+    @processed_image.setter
+    def processed_image(self, value):
+        self.image_prep_state.processed_image = value
+
+    @property
+    def crop_region(self):
+        return self.image_prep_state.crop_region
+
+    @crop_region.setter
+    def crop_region(self, value):
+        self.image_prep_state.crop_region = value
+
+    @property
+    def crop_selector(self):
+        return self.image_prep_state.crop_selector
+
+    @crop_selector.setter
+    def crop_selector(self, value):
+        self.image_prep_state.crop_selector = value
+
+    @property
+    def rotation_params(self):
+        return self.image_prep_state.rotation_params
+
+    @rotation_params.setter
+    def rotation_params(self, value):
+        self.image_prep_state.rotation_params = value
+
+    @property
+    def pcr_tubes(self):
+        return self.detection_state.pcr_tubes
+
+    @pcr_tubes.setter
+    def pcr_tubes(self, value):
+        self.detection_state.pcr_tubes = value
+
+    @property
+    def inferred_tubes(self):
+        return self.detection_state.inferred_tubes
+
+    @inferred_tubes.setter
+    def inferred_tubes(self, value):
+        self.detection_state.inferred_tubes = value
+
+    @property
+    def all_tubes(self):
+        return self.detection_state.all_tubes
+
+    @all_tubes.setter
+    def all_tubes(self, value):
+        self.detection_state.all_tubes = value
+
+    @property
+    def inner_circles(self):
+        return self.detection_state.inner_circles
+
+    @inner_circles.setter
+    def inner_circles(self, value):
+        self.detection_state.inner_circles = value
+
+    @property
+    def tubes_size(self):
+        return self.detection_state.tubes_size
+
+    @tubes_size.setter
+    def tubes_size(self, value):
+        self.detection_state.tubes_size = value
+
+    @property
+    def temperature_recordings(self):
+        return self.analysis_state.temperature_recordings
+
+    @temperature_recordings.setter
+    def temperature_recordings(self, value):
+        self.analysis_state.temperature_recordings = value
+
+    @property
+    def brightness_timeseries(self):
+        return self.analysis_state.brightness_timeseries
+
+    @brightness_timeseries.setter
+    def brightness_timeseries(self, value):
+        self.analysis_state.brightness_timeseries = value
+
+    @property
+    def freezing_temperatures(self):
+        return self.analysis_state.freezing_temperatures
+
+    @freezing_temperatures.setter
+    def freezing_temperatures(self, value):
+        self.analysis_state.freezing_temperatures = value
+
+    @property
+    def num_tubes(self):
+        return self.analysis_state.num_tubes
+
+    @num_tubes.setter
+    def num_tubes(self, value):
+        self.analysis_state.num_tubes = value
+
+    @property
+    def current_tube(self):
+        return self.analysis_state.current_tube
+
+    @current_tube.setter
+    def current_tube(self, value):
+        self.analysis_state.current_tube = value
+
+    @property
+    def current_tube_temperature(self):
+        return self.analysis_state.current_tube_temperature
+
+    @current_tube_temperature.setter
+    def current_tube_temperature(self, value):
+        self.analysis_state.current_tube_temperature = value
+
+    @property
+    def current_tube_brightness(self):
+        return self.analysis_state.current_tube_brightness
+
+    @current_tube_brightness.setter
+    def current_tube_brightness(self, value):
+        self.analysis_state.current_tube_brightness = value
+
+    @property
+    def current_tube_timestamps(self):
+        return self.analysis_state.current_tube_timestamps
+
+    @current_tube_timestamps.setter
+    def current_tube_timestamps(self, value):
+        self.analysis_state.current_tube_timestamps = value
 
     def get_default_font_size(self):
         app = QApplication.instance()
@@ -368,32 +524,23 @@ class InteractivePlot(QMainWindow):
         )
         
     def get_log_widget(self, tab_number):
-        if tab_number == self.LOG_TAB_PREPARE:
-            return getattr(self, 'log_text_edit_prep', None)
-        if tab_number == self.LOG_TAB_LOCATE:
-            return getattr(self, 'log_text_edit', None)
-        if tab_number == self.LOG_TAB_ANALYZE:
-            return getattr(self, 'log_text_edit2', None)
-        return None
+        return logging_get_log_widget(self, tab_number)
 
     def format_log_message(self, message, level):
-        level_style = self.LOG_LEVEL_STYLES[level]
-        timestamp = datetime.datetime.now().strftime('%H:%M:%S')
-        escaped_message = html.escape(str(message)).replace('\n', '<br>')
-        return (
-            f"<span style=\"color:#7d8a98;\">[{timestamp}]</span> "
-            f"<span style=\"color:{level_style['badge']}; font-weight:600;\">[{level_style['label']}]</span> "
-            f"<span style=\"color:{level_style['text']};\">{escaped_message}</span>"
-        )
+        return logging_format_log_message(self, message, level)
 
     def write_log_entry(self, widget, formatted_message):
-        widget.moveCursor(QTextCursor.MoveOperation.End)
-        widget.insertHtml(formatted_message)
-        widget.insertPlainText("\n")
-        widget.moveCursor(QTextCursor.MoveOperation.End)
+        logging_write_log_entry(widget, formatted_message)
 
     def update_log(self, message, tab_number, level):
         self.append_log_message(message, tab_number, level)
+
+    def closeEvent(self, event):
+        if getattr(self, 'original_stdout', None) is not None:
+            sys.stdout = self.original_stdout
+        if getattr(self, 'original_stderr', None) is not None:
+            sys.stderr = self.original_stderr
+        super().closeEvent(event)
 
     def apply_styles(self):
         base_font_size = self.ui_font_size
@@ -507,12 +654,7 @@ class InteractivePlot(QMainWindow):
         return f"{prefix}: {selected_name}"
 
     def append_log_message(self, message, tab_number, level):
-        widget = self.get_log_widget(tab_number)
-        if widget is None:
-            return
-
-        formatted_message = self.format_log_message(message, level)
-        self.write_log_entry(widget, formatted_message)
+        logging_append_log_message(self, message, tab_number, level)
 
     def validate_file_path(self, path, label, tab_number):
         if not path:
@@ -556,81 +698,19 @@ class InteractivePlot(QMainWindow):
         return all(checks)
 
     def refresh_image_path_labels(self):
-        current_image = os.path.basename(self.sample_image_path) if self.sample_image_path else "Not selected"
-        if hasattr(self, 'sample_image_path_label'):
-            self.sample_image_path_label.setText(f"Current image: {current_image}")
-        if hasattr(self, 'tube_image_summary_label'):
-            self.tube_image_summary_label.setText(f"Tube detection source: {current_image}")
+        cache_refresh_image_path_labels(self)
 
     def refresh_analysis_input_labels(self):
-        if hasattr(self, 'image_directory_label'):
-            self.image_directory_label.setText(self.format_selected_path("Current", self.image_directory))
-        if hasattr(self, 'temperature_recording_label'):
-            self.temperature_recording_label.setText(self.format_selected_path("Current", self.temperature_recording_file))
-        if hasattr(self, 'tube_locations_label'):
-            self.tube_locations_label.setText(self.format_selected_path("Current", self.tube_location_file))
+        cache_refresh_analysis_input_labels(self)
 
     def load_selection_cache(self):
-        if not os.path.isfile(self.selection_cache_path):
-            return {}
-
-        try:
-            with open(self.selection_cache_path, 'r', encoding='utf-8') as cache_file:
-                cached_data = json.load(cache_file)
-        except (OSError, json.JSONDecodeError):
-            return {}
-
-        return cached_data if isinstance(cached_data, dict) else {}
+        return cache_load_selection_cache(self)
 
     def save_selection_cache(self):
-        cached_data = {
-            'sample_image_path': self.sample_image_path,
-            'image_directory': self.image_directory,
-            'temperature_recording_file': self.temperature_recording_file,
-            'tube_location_file': self.tube_location_file,
-            'ui_font_size': self.ui_font_size,
-        }
-        temp_cache_path = f"{self.selection_cache_path}.tmp"
-
-        try:
-            with open(temp_cache_path, 'w', encoding='utf-8') as cache_file:
-                json.dump(cached_data, cache_file, indent=2)
-            os.replace(temp_cache_path, self.selection_cache_path)
-        except OSError:
-            if os.path.exists(temp_cache_path):
-                try:
-                    os.remove(temp_cache_path)
-                except OSError:
-                    pass
+        cache_save_selection_cache(self)
 
     def restore_cached_selections(self):
-        cached_data = self.load_selection_cache()
-
-        sample_image_path = cached_data.get('sample_image_path')
-        if isinstance(sample_image_path, str) and os.path.isfile(sample_image_path):
-            self.sample_image_path = sample_image_path
-
-        image_directory = cached_data.get('image_directory')
-        if isinstance(image_directory, str) and os.path.isdir(image_directory):
-            self.image_directory = image_directory
-
-        temperature_recording_file = cached_data.get('temperature_recording_file')
-        if isinstance(temperature_recording_file, str) and os.path.isfile(temperature_recording_file):
-            self.temperature_recording_file = temperature_recording_file
-
-        tube_location_file = cached_data.get('tube_location_file')
-        if isinstance(tube_location_file, str) and os.path.isfile(tube_location_file):
-            self.tube_location_file = tube_location_file
-
-        ui_font_size = cached_data.get('ui_font_size')
-        if isinstance(ui_font_size, int):
-            self.set_ui_font_size(ui_font_size, persist=False)
-
-        self.refresh_image_path_labels()
-        self.refresh_analysis_input_labels()
-
-        if self.sample_image_path:
-            self.load_crop_image()
+        cache_restore_cached_selections(self)
 
     def create_selection_group(self, title, button_text, selection_method):
         group = QGroupBox(title)
@@ -651,375 +731,31 @@ class InteractivePlot(QMainWindow):
         return group, label
 
     def setup_tube_locating_tab(self):
-        tab1_layout = QHBoxLayout(self.tab1)
-        tab1_layout.setContentsMargins(12, 12, 12, 12)
-        tab1_layout.setSpacing(12)
-
-        # 创建左侧的图表部件和布局
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(4)
-        self.figure = Figure(figsize=(5, 4), dpi=100)
-        self.configure_figure_padding(self.figure, image_mode=True, reserve_title_space=True)
-        self.canvas = FigureCanvas(self.figure)
-        self.toolbar = NavigationToolbar(self.canvas, self)
-        left_layout.addWidget(self.toolbar)
-        left_layout.addWidget(self.canvas, 1)
-
-        self.ax = self.figure.add_subplot(111)
-        
-        # 连接鼠标事件
-        self.canvas.mpl_connect('button_press_event', self.on_mouse_click)
-
-        # 创建右侧的控制面板
-        right_widget = QWidget()
-        right_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.setSpacing(12)
-
-        right_layout.addWidget(self.create_tab_header(
-            "Locate tubes on the prepared image",
-            "Review the cropped image, tune the detection settings, then save the inner-circle positions for the analysis step."
-        ))
-
-        self.tube_image_summary_label = self.create_status_label(
-            self.format_selected_path("Tube detection source", self.sample_image_path)
-        )
-        right_layout.addWidget(self.tube_image_summary_label)
-
-        detection_group = QGroupBox("Detection Settings")
-        detection_layout = QVBoxLayout(detection_group)
-        detection_layout.setSpacing(10)
-
-        self.refresh_button = QPushButton("Refresh Detection")
-        self.refresh_button.clicked.connect(self.plot_tube_detection_results)
-        detection_layout.addWidget(self.refresh_button)
-
-        form_layout = QFormLayout()
-        self.tubes_size_input = QLineEdit()
-        self.tubes_size_input.setPlaceholderText("Example: 10, 8 (rows, columns)")
-        self.tubes_size_input.setToolTip("Enter the tube grid as rows, columns. Example: 10, 8 means 10 rows and 8 columns.")
-        self.tubes_size_input.setText('10, 8')
-        self.tubes_size_input.textChanged.connect(self.update_tubes_size)
-        form_layout.addRow("Tubes array size (rows, columns):", self.tubes_size_input)
-
-        tubes_size_hint = QLabel("Example: 10, 8 means 10 rows and 8 columns.")
-        tubes_size_hint.setObjectName("hintLabel")
-        tubes_size_hint.setWordWrap(True)
-        form_layout.addRow("", tubes_size_hint)
-
-        self.rotation_input = QLineEdit()
-        self.rotation_input.setPlaceholderText("auto or degrees, e.g. -1.5")
-        self.rotation_input.setToolTip("Use 'auto' to estimate the tube-grid angle, or enter degrees manually. Positive values rotate counter-clockwise and negative values rotate clockwise.")
-        self.rotation_input.setText('auto')
-        self.rotation_input.textChanged.connect(self.schedule_update)
-        form_layout.addRow("Grid rotation:", self.rotation_input)
-
-        rotation_hint = QLabel("Use 'auto' to estimate the tube-grid angle. You can also enter degrees manually: positive values rotate counter-clockwise, negative values rotate clockwise.")
-        rotation_hint.setObjectName("hintLabel")
-        rotation_hint.setWordWrap(True)
-        form_layout.addRow("", rotation_hint)
-
-        detection_layout.addLayout(form_layout)
-
-        min_area_group = QWidget()
-        min_area_layout = QVBoxLayout(min_area_group)
-        min_area_layout.setContentsMargins(0, 0, 0, 0)
-        self.min_area_slider = QSlider(Qt.Orientation.Horizontal)
-        self.min_area_slider.setMinimum(10)
-        self.min_area_slider.setMaximum(1500)
-        self.min_area_slider.setSingleStep(10)
-        self.min_area_slider.setValue(800)
-        self.min_area_label = QLabel("Min Area: 800")
-        self.min_area_slider.valueChanged.connect(self.update_min_area)
-        min_area_layout.addWidget(self.min_area_label)
-        min_area_layout.addWidget(self.min_area_slider)
-        detection_layout.addWidget(min_area_group)
-
-        circularity_group = QWidget()
-        circularity_layout = QVBoxLayout(circularity_group)
-        circularity_layout.setContentsMargins(0, 0, 0, 0)
-        self.circularity_slider = QSlider(Qt.Orientation.Horizontal)
-        self.circularity_slider.setMinimum(10)
-        self.circularity_slider.setMaximum(100)
-        self.circularity_slider.setSingleStep(5)
-        self.circularity_slider.setValue(20)
-        self.circularity_label = QLabel("Circularity: 0.20")
-        self.circularity_slider.valueChanged.connect(self.update_circularity)
-        circularity_layout.addWidget(self.circularity_label)
-        circularity_layout.addWidget(self.circularity_slider)
-        detection_layout.addWidget(circularity_group)
-        right_layout.addWidget(detection_group)
-
-        review_group = QGroupBox("Manual Review")
-        review_layout = QVBoxLayout(review_group)
-        review_hint = QLabel("Left click removes an inner circle. Right click adds a new one.")
-        review_hint.setObjectName("hintLabel")
-        review_hint.setWordWrap(True)
-        review_layout.addWidget(review_hint)
-
-        self.save_button = QPushButton("Save Inner Circles")
-        self.save_button.clicked.connect(self.save_inner_circles)
-        review_layout.addWidget(self.save_button)
-        right_layout.addWidget(review_group)
-
-        log_group = QGroupBox("Detection Log")
-        log_layout = QVBoxLayout(log_group)
-        self.log_text_edit = QTextEdit()
-        self.log_text_edit.setReadOnly(True)
-        log_layout.addWidget(self.log_text_edit)
-        right_layout.addWidget(log_group, 1)
-        
-        right_layout.addStretch(1)
-
-        right_scroll_area = self.create_scrollable_panel(right_widget)
-
-        # 将部件添加到主布局
-        tab1_layout.addWidget(left_widget, 5)
-        tab1_layout.addWidget(right_scroll_area, 3)
-        
-        # 重定向输出
-        sys.stdout = StreamToTextEdit(self.update_log_signal, self.LOG_TAB_LOCATE, self.LOG_LEVEL_INFO)
+        build_tube_locating_tab(self)
 
     def setup_freezing_detection_tab(self):
-        tab2_layout = QHBoxLayout(self.tab2)
-        tab2_layout.setContentsMargins(12, 12, 12, 12)
-        tab2_layout.setSpacing(12)
-
-        # 创建左侧的图表部件
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(4)
-        self.figure2 = Figure(figsize=(5, 4), dpi=100)
-        self.configure_figure_padding(self.figure2)
-        self.canvas2 = FigureCanvas(self.figure2)
-        self.toolbar2 = NavigationToolbar(self.canvas2, self)
-        left_layout.addWidget(self.toolbar2)
-        left_layout.addWidget(self.canvas2, 1)
-
-        self.ax2 = self.figure2.add_subplot(111)
-
-        # 创建右侧的控制面板
-        right_widget = QWidget()
-        right_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.setSpacing(12)
-
-        right_layout.addWidget(self.create_tab_header(
-            "Review freezing events tube by tube",
-            "Choose the required input files, run the timeseries analysis, then inspect or correct the freezing point for each tube."
-        ))
-
-        input_group = QGroupBox("Analysis Inputs")
-        input_layout = QVBoxLayout(input_group)
-
-        image_dir_group, self.image_directory_label = self.create_selection_group(
-            "Image Directory", "Select Images Folder", self.select_image_directory)
-        input_layout.addWidget(image_dir_group)
-
-        temp_rec_group, self.temperature_recording_label = self.create_selection_group(
-            "Temperature Recording", "Select Temperature File", self.select_temperature_recording)
-        input_layout.addWidget(temp_rec_group)
-
-        tube_loc_group, self.tube_locations_label = self.create_selection_group(
-            "Tube Locations", "Select Tube Locations", self.select_tube_locations)
-        input_layout.addWidget(tube_loc_group)
-        
-        self.start_load_timeseries_button = QPushButton("Run Analysis")
-        self.start_load_timeseries_button.clicked.connect(self.load_brightness_series)
-        input_layout.addWidget(self.start_load_timeseries_button)
-
-        self.analysis_progress_bar = QProgressBar()
-        self.analysis_progress_bar.setRange(0, 100)
-        self.analysis_progress_bar.setValue(0)
-        self.analysis_progress_bar.setFormat("Idle")
-        input_layout.addWidget(self.analysis_progress_bar)
-
-        right_layout.addWidget(input_group)
-
-        review_group = QGroupBox("Tube Review")
-        review_layout = QVBoxLayout(review_group)
-
-        button_layout = QHBoxLayout()
-        self.prev_button = QPushButton("Previous")
-        self.next_button = QPushButton("Next")
-        self.discard_button = QPushButton("Discard")
-        self.prev_button.clicked.connect(self.previous_tube)
-        self.next_button.clicked.connect(self.next_tube)
-        self.discard_button.clicked.connect(self.discard_tube)
-        button_layout.addWidget(self.prev_button)
-        button_layout.addWidget(self.next_button)
-        button_layout.addWidget(self.discard_button)
-        review_layout.addLayout(button_layout)
-
-        self.value_input = QLineEdit()
-        self.value_input.setPlaceholderText("Enter tube number")
-        self.value_input.returnPressed.connect(self.go_to_tube)
-        review_layout.addWidget(QLabel("Go to tube:"))
-        review_layout.addWidget(self.value_input)
-        right_layout.addWidget(review_group)
-
-        export_group = QGroupBox("Import / Export")
-        export_layout = QVBoxLayout(export_group)
-        self.save_button_freezing_temperatures = QPushButton("Save Freezing Temperatures")
-        self.save_button_freezing_temperatures.clicked.connect(self.save_freezing_events_data)
-        self.load_button_freezing_temperatures = QPushButton("Load Freezing Temperatures")
-        self.load_button_freezing_temperatures.clicked.connect(self.load_freezing_events_data)
-        export_layout.addWidget(self.save_button_freezing_temperatures)
-        export_layout.addWidget(self.load_button_freezing_temperatures)
-        right_layout.addWidget(export_group)
-
-        log_group = QGroupBox("Analysis Log")
-        log_layout = QVBoxLayout(log_group)
-        self.log_text_edit2 = QTextEdit()
-        self.log_text_edit2.setReadOnly(True)
-        log_layout.addWidget(self.log_text_edit2)
-        right_layout.addWidget(log_group, 1)
-
-        right_layout.addStretch(1)
-
-        right_scroll_area = self.create_scrollable_panel(right_widget)
-
-        # 将部件添加到主布局
-        tab2_layout.addWidget(left_widget, 5)
-        tab2_layout.addWidget(right_scroll_area, 3)
-        
-        # Disable controls initially
-        self.prev_button.setEnabled(False)
-        self.next_button.setEnabled(False)
-        self.discard_button.setEnabled(False)
-        self.value_input.setEnabled(False)
-        self.save_button_freezing_temperatures.setEnabled(False)
-        self.load_button_freezing_temperatures.setEnabled(False)
-        
-        # default setting
-        self.image_directory = None
-        self.tube_location_file = None
-        self.temperature_recording_file = None
+        build_freezing_detection_tab(self)
     
     def setup_image_cropping_tab(self):
-        tab3_layout = QHBoxLayout(self.tab3)
-        tab3_layout.setContentsMargins(12, 12, 12, 12)
-        tab3_layout.setSpacing(12)
-
-        # Create matplotlib figure and canvas
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(4)
-        self.figure_crop = Figure(figsize=(5, 4), dpi=100)
-        self.configure_figure_padding(self.figure_crop, image_mode=True)
-        self.canvas_crop = FigureCanvas(self.figure_crop)
-        self.toolbar_crop = NavigationToolbar(self.canvas_crop, self)
-        self.ax_crop = self.figure_crop.add_subplot(111)
-        left_layout.addWidget(self.toolbar_crop)
-        left_layout.addWidget(self.canvas_crop, 1)
-
-        # Create control panel
-        control_widget = QWidget()
-        control_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        control_layout = QVBoxLayout(control_widget)
-        control_layout.setSpacing(12)
-
-        control_layout.addWidget(self.create_tab_header(
-            "Prepare the image before tube detection",
-            "Select a source image, adjust its angle if needed, then crop the useful region before moving to tube detection."
-        ))
-
-        image_group = QGroupBox("Step 1: Choose Image")
-        image_layout = QVBoxLayout(image_group)
-
-        self.sample_image_path_label = QLabel(self.format_selected_path("Current image", self.sample_image_path))
-        self.sample_image_path_label.setWordWrap(True)
-        image_layout.addWidget(self.sample_image_path_label)
-
-        self.sample_image_path_button = QPushButton("Select an Image")
-        self.sample_image_path_button.clicked.connect(self.select_sample_image_path)
-        image_layout.addWidget(self.sample_image_path_button)
-
-        self.load_crop_image_button = QPushButton("Load Image")
-        self.load_crop_image_button.clicked.connect(self.load_crop_image)
-        image_layout.addWidget(self.load_crop_image_button)
-        control_layout.addWidget(image_group)
-
-        rotation_group = QGroupBox("Step 2: Adjust Rotation")
-        rotation_group_layout = QVBoxLayout(rotation_group)
-        rotation_layout = QHBoxLayout()
-        self.rotation_input_crop = QLineEdit()
-        self.rotation_input_crop.setPlaceholderText("Example: 2.5 or -2.5 degrees")
-        self.rotation_input_crop.setToolTip("Positive values rotate counter-clockwise. Negative values rotate clockwise.")
-        self.rotation_input_crop.setText('0')
-        rotation_layout.addWidget(QLabel("Rotation angle (degrees):"))
-        rotation_layout.addWidget(self.rotation_input_crop)
-        rotation_group_layout.addLayout(rotation_layout)
-
-        rotation_hint = QLabel("Use positive values for counter-clockwise rotation and negative values for clockwise rotation. Example: 2.5 or -2.5.")
-        rotation_hint.setObjectName("hintLabel")
-        rotation_hint.setWordWrap(True)
-        rotation_group_layout.addWidget(rotation_hint)
-
-        self.apply_rotation_button = QPushButton("Rotate Image")
-        self.apply_rotation_button.clicked.connect(self.apply_rotation)
-        rotation_group_layout.addWidget(self.apply_rotation_button)
-        control_layout.addWidget(rotation_group)
-
-        crop_group = QGroupBox("Step 3: Crop And Continue")
-        crop_layout = QVBoxLayout(crop_group)
-        crop_hint = QLabel("Drag a rectangle on the image. Apply Crop will switch to the tube detection tab.")
-        crop_hint.setObjectName("hintLabel")
-        crop_hint.setWordWrap(True)
-        crop_layout.addWidget(crop_hint)
-
-        self.apply_crop_button = QPushButton("Apply Crop")
-        self.apply_crop_button.clicked.connect(self.apply_crop)
-        crop_layout.addWidget(self.apply_crop_button)
-
-        self.restore_image_button = QPushButton("Restore Original Image")
-        self.restore_image_button.clicked.connect(self.restore_original_image)
-        crop_layout.addWidget(self.restore_image_button)
-        control_layout.addWidget(crop_group)
-
-        log_group = QGroupBox("Preparation Log")
-        log_layout = QVBoxLayout(log_group)
-        self.log_text_edit_prep = QTextEdit()
-        self.log_text_edit_prep.setReadOnly(True)
-        log_layout.addWidget(self.log_text_edit_prep)
-        control_layout.addWidget(log_group, 1)
-
-        # Store original image
-        self.original_image = None
-        self.rotated_image = None
-
-        control_layout.addStretch(1)
-
-        control_scroll_area = self.create_scrollable_panel(control_widget)
-
-        # Add widgets to main layout
-        tab3_layout.addWidget(left_widget, 5)
-        tab3_layout.addWidget(control_scroll_area, 3)
+        build_image_cropping_tab(self)
 
     def setup_settings_tab(self):
-        tab4_layout = QHBoxLayout(self.tab4)
-        tab4_layout.setContentsMargins(12, 12, 12, 12)
-        tab4_layout.setSpacing(12)
+        build_settings_tab(self)
 
-        settings_widget = QWidget()
-        settings_layout = QVBoxLayout(settings_widget)
-        settings_layout.setSpacing(12)
+    def create_crop_selector(self):
+        if self.crop_selector is not None:
+            self.crop_selector.set_active(False)
 
-        settings_layout.addWidget(self.create_tab_header(
-            "Adjust display and shortcuts",
-            "Keep the analysis tabs uncluttered while still making interface size and keyboard navigation easy to access."
-        ))
-
-        settings_layout.addWidget(self.create_display_controls())
-        settings_layout.addWidget(self.create_shortcuts_summary_group())
-        settings_layout.addStretch(1)
-
-        settings_scroll_area = self.create_scrollable_panel(settings_widget)
-        tab4_layout.addWidget(settings_scroll_area)
+        self.crop_selector = RectangleSelector(
+            self.ax_crop,
+            self.on_crop_select,
+            useblit=True,
+            button=[1, 3],
+            minspanx=5,
+            minspany=5,
+            spancoords='pixels',
+            interactive=True,
+        )
 
     
     def select_sample_image_path(self):
@@ -1029,7 +765,7 @@ class InteractivePlot(QMainWindow):
             self.refresh_image_path_labels()
             self.save_selection_cache()
             self.append_log_message(f"Selected image: {file}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
-            self.load_crop_image()
+            self.load_selected_image_into_preparation_view()
 
     def select_image_directory(self):
         folder = QFileDialog.getExistingDirectory(self, "Select Image Directory")
@@ -1055,130 +791,14 @@ class InteractivePlot(QMainWindow):
             self.save_selection_cache()
             self.append_log_message(f"Tube locations selected: {file}", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
 
-    def plot_tube_detection_results(self):
-        self.ax.clear()
-        try:
-            min_area = self.min_area_slider.value()
-            circularity_threshold = self.circularity_slider.value() / 100
-            rotation = self.rotation_input.text()
+    def run_tube_detection_and_render_plot(self):
+        detection_run_tube_detection_and_render_plot(self)
 
-            # Use the processed image if available, otherwise use the original sample image
-            if self.processed_image is not None:
-                self.img = self.processed_image
-            else:
-                self.img = self.load_image_from_path(self.sample_image_path, "Sample image", self.LOG_TAB_LOCATE)
-                if self.img is None:
-                    return
+    def handle_tube_detection_plot_click(self, event):
+        detection_handle_tube_detection_plot_click(self, event)
 
-            if self.original_image is None:
-                raise ValueError("No source image is loaded. Load an image before running tube detection.")
-
-            # Tube detection
-            self.pcr_tubes, _ = locate_pcr_tubes(self.img, min_area, circularity_threshold)
-
-            # Prepare for further processing
-            self.inferred_tubes = infer_missing_tubes(
-                self.pcr_tubes,
-                self.img.shape,
-                tubes_size=self.tubes_size,
-                rotate=rotation
-            )
-
-            self.all_tubes = self.pcr_tubes + self.inferred_tubes
-            self.inner_circles = detect_inner_circles(self.img, self.all_tubes)
-
-            # Visualize on the canvas
-            img_with_tubes = self.img.copy()
-            for tube, inner_circle in zip(self.all_tubes, self.inner_circles):
-                color = (0, 255, 0) if 'inferred' not in tube else (0, 0, 255)
-                cv2.circle(img_with_tubes, (tube['x'], tube['y']), tube['radius'], color, 2)
-
-                if inner_circle:
-                    cv2.circle(img_with_tubes, (inner_circle['x'], inner_circle['y']), inner_circle['radius'], (0, 0, 0), 1)
-
-            self.ax.imshow(cv2.cvtColor(img_with_tubes, cv2.COLOR_BGR2RGB))
-            self.ax.set_title(
-                f"Detected PCR Tubes: {len(self.pcr_tubes)}, Inferred: {len(self.all_tubes) - len(self.pcr_tubes)}",
-                pad=12,
-            )
-            self.ax.axis('off')
-
-            self.append_log_message(
-                f"Detected {len(self.pcr_tubes)} PCR tubes",
-                self.LOG_TAB_LOCATE,
-                self.LOG_LEVEL_INFO,
-            )
-            self.append_log_message(
-                f"Inferred {len(self.all_tubes) - len(self.pcr_tubes)} additional tubes",
-                self.LOG_TAB_LOCATE,
-                self.LOG_LEVEL_INFO,
-            )
-
-        except Exception as e:
-            error_msg = f"Error: {str(e)}\n\n{traceback.format_exc()}"
-            self.show_plot_error(self.ax, "An error occurred", error_msg)
-            self.append_log_message(error_msg, self.LOG_TAB_LOCATE, self.LOG_LEVEL_ERROR)
-
-        finally:
-            self.canvas.draw()
-
-    def on_mouse_click(self, event):
-        if event.inaxes != self.ax:
-            return
-
-        x, y = int(event.xdata), int(event.ydata)
-
-        if event.button == 1:  # Left click - remove point
-            # Find closest inner circle
-            if self.inner_circles:
-                closest_circle = min(self.inner_circles,
-                                    key=lambda c: ((c['x'] - x)**2 + (c['y'] - y)**2)**0.5)
-                circle_distance = ((closest_circle['x'] - x)**2 + (closest_circle['y'] - y)**2)**0.5
-
-                # Remove if close enough
-                if circle_distance < 20:  # Adjust threshold as needed
-                    self.inner_circles.remove(closest_circle)
-                    self.append_log_message(
-                        f"Removed inner circle at ({closest_circle['x']}, {closest_circle['y']})",
-                        self.LOG_TAB_LOCATE,
-                        self.LOG_LEVEL_INFO,
-                    )
-                    self.redraw_tube_detection_results()
-
-        elif event.button == 3:  # Right click - add point
-            # Add new inner circle
-            new_circle = {'x': x, 'y': y, 'radius': 10}
-            self.inner_circles.append(new_circle)
-            self.append_log_message(
-                f"Added new inner circle at ({x}, {y})",
-                self.LOG_TAB_LOCATE,
-                self.LOG_LEVEL_INFO,
-            )
-            self.redraw_tube_detection_results()
-
-    def redraw_tube_detection_results(self):
-        self.ax.clear()
-        img_with_tubes = self.img.copy()
-
-        for tube in self.all_tubes:
-            color = (0, 255, 0) if 'inferred' not in tube else (0, 0, 255)
-            cv2.circle(img_with_tubes, (tube['x'], tube['y']), tube['radius'], color, 2)
-
-        for circle in self.inner_circles:
-            cv2.circle(img_with_tubes, (circle['x'], circle['y']), circle['radius'], (0, 0, 0), 1)
-
-        self.ax.imshow(cv2.cvtColor(img_with_tubes, cv2.COLOR_BGR2RGB))
-        self.ax.set_title(
-            f"PCR Tubes: {len(self.pcr_tubes)}, Inner Circles: {len(self.inner_circles)}",
-            pad=12,
-        )
-        self.ax.axis('off')
-        self.canvas.draw()
-        self.append_log_message(
-            f"Redrawn: PCR Tubes: {len(self.pcr_tubes)}, Inner Circles: {len(self.inner_circles)}",
-            self.LOG_TAB_LOCATE,
-            self.LOG_LEVEL_DEBUG,
-        )
+    def redraw_manual_tube_detection_plot(self):
+        detection_redraw_manual_tube_detection_plot(self)
 
     def schedule_update(self):
         self.update_timer.start(300)  # 300ms 延迟
@@ -1215,274 +835,54 @@ class InteractivePlot(QMainWindow):
             )
 
     def normalize_inner_circles(self, circles, default_method="loaded"):
-        normalized_circles = []
-        for circle in circles:
-            normalized_circle = dict(circle)
-            normalized_circle['x'] = int(round(normalized_circle['x']))
-            normalized_circle['y'] = int(round(normalized_circle['y']))
-            normalized_circle['radius'] = int(round(normalized_circle.get('radius', 10)))
-            normalized_circle['method'] = normalized_circle.get('method', default_method)
-            normalized_circles.append(normalized_circle)
-        return normalized_circles
+        return normalize_inner_circles(circles, default_method=default_method)
 
     def restore_circle_to_original_image(self, circle):
-        restored_circle = dict(circle)
-        restored_circle['x'] = int(round(restored_circle['x']))
-        restored_circle['y'] = int(round(restored_circle['y']))
-        restored_circle['radius'] = int(round(restored_circle.get('radius', 10)))
+        return restore_circle_to_original_image(circle, self.crop_region, self.rotation_params)
 
-        if self.crop_region is not None:
-            x_offset, y_offset, _, _ = self.crop_region
-            restored_circle['x'] += x_offset
-            restored_circle['y'] += y_offset
-
-        if self.rotation_params is not None:
-            inverse_matrix = cv2.invertAffineTransform(self.rotation_params['matrix'])
-            original_x, original_y = inverse_matrix @ np.array(
-                [restored_circle['x'], restored_circle['y'], 1.0],
-                dtype=float,
-            )
-            restored_circle['x'] = int(round(original_x))
-            restored_circle['y'] = int(round(original_y))
-
-        return restored_circle
-
-    def save_inner_circles(self):
-        default_filename = f"inner_circles_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
-        default_filepath = os.path.join(".", default_filename)
-
-        file_path, _ = QFileDialog.getSaveFileName(self, "Save Inner Circles", default_filepath, "Pickle Files (*.pkl)")
-        if file_path:
-            restored_circles = [
-                self.restore_circle_to_original_image(circle)
-                for circle in self.normalize_inner_circles(self.inner_circles, default_method="manual")
-            ]
-
-            with open(file_path, 'wb') as f:
-                pickle.dump(restored_circles, f)
-            self.append_log_message(
-                f"Inner circles saved to {file_path}",
-                self.LOG_TAB_LOCATE,
-                self.LOG_LEVEL_SUCCESS,
-            )
+    def save_detected_inner_circles(self):
+        detection_save_detected_inner_circles(self)
 
     def save_freezing_events_data(self):
-        default_filename = f"freezing_temperatures_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-        default_filepath = os.path.join(".", default_filename)
-
-        file_path, _ = QFileDialog.getSaveFileName(self, "Save Freezing Temperatures", default_filepath, "Text Files (*.txt)")
-        if file_path:
-            with open(file_path, 'w') as f:
-                f.write("Tube,Temperature,Timestamp\n")  # Header
-                for tube, data in self.freezing_temperatures.items():
-                    temperature = data['temperature']
-                    timestamp = data['timestamp']
-                    if temperature is not None and timestamp is not None:
-                        datetime_str = pd.Timestamp(timestamp).isoformat()  # numpy datetime, str looks like: 2023-04-03T16:30:55.000000000
-                        f.write(f"{tube},{temperature:.4f},{datetime_str}\n")
-                    else:
-                        f.write(f"{tube},N/A,N/A\n")
-            
-            self.append_log_message(
-                f"Freezing temperatures saved to {file_path}",
-                self.LOG_TAB_ANALYZE,
-                self.LOG_LEVEL_SUCCESS,
-            )
+        analysis_save_freezing_events_data(self)
             
     def load_freezing_events_data(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Load Freezing Temperatures", ".", "Text Files (*.txt)")
-        if file_path:
-            try:
-                self.freezing_temperatures = {}
-                with open(file_path, 'r') as f:
-                    next(f)  # Skip the header line
-                    for line in f:
-                        try:
-                            tube, temperature, datetime_str = line.strip().split(',')
-                            tube = int(tube)
-                            if temperature != 'N/A':
-                                temperature = float(temperature)
-                                timestamp = pd.to_datetime(datetime_str).to_numpy()
-                                
-                                self.freezing_temperatures[tube] = {
-                                    'temperature': temperature,
-                                    'timestamp': timestamp
-                                }
-                            else:
-                                self.freezing_temperatures[tube] = {
-                                    'temperature': None,
-                                    'timestamp': None
-                                }
-                        except ValueError as e:
-                            self.append_log_message(
-                                f"Error parsing line: {line}. Error: {str(e)}",
-                                self.LOG_TAB_ANALYZE,
-                                self.LOG_LEVEL_ERROR,
-                            )
-                            continue
-                
-                self.append_log_message(
-                    f"Freezing temperatures loaded from {file_path}",
-                    self.LOG_TAB_ANALYZE,
-                    self.LOG_LEVEL_SUCCESS,
-                )
-                self.append_log_message(
-                    f"Loaded data for {len(self.freezing_temperatures)} tubes",
-                    self.LOG_TAB_ANALYZE,
-                    self.LOG_LEVEL_INFO,
-                )
-                
-                # Update the plot if data is currently displayed
-                if hasattr(self, 'current_tube'):
-                    self.update_brightness_timeseries_plot()
-            
-            except Exception as e:
-                self.append_log_message(
-                    f"Error loading file: {str(e)}",
-                    self.LOG_TAB_ANALYZE,
-                    self.LOG_LEVEL_ERROR,
-                )
-        else:
-            self.append_log_message("No file selected", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_WARNING)
+        analysis_load_freezing_events_data(self)
         
-    def load_brightness_series(self):
-        if not self.validate_analysis_inputs():
-            return
-
-        # Load inner circles first
-        if not self.load_inner_circles():
-            return
-
-        # Disable the start button to prevent multiple threads
-        self.start_load_timeseries_button.setEnabled(False)
-        self.analysis_progress_bar.setValue(0)
-        self.analysis_progress_bar.setFormat("Loading brightness timeseries... %p%")
-        
-        # Create a QThread object
-        self.thread = QThread()
-        # Create a worker object
-        self.worker = BrightnessWorker(self.image_directory, self.tube_location_file, self.temperature_recording_file)
-        # Move worker to the thread
-        self.worker.moveToThread(self.thread)
-        # Connect signals and slots
-        self.thread.started.connect(self.worker.run)
-        self.worker.finished.connect(self.thread.quit)
-        self.worker.finished.connect(self.worker.deleteLater)
-        self.thread.finished.connect(self.thread.deleteLater)
-        self.worker.progress.connect(self.update_progress)
-        self.worker.finished.connect(self.process_results)
-        self.worker.log.connect(self.update_subprocess_log)
-        # Start the thread
-        self.thread.start()
-
-        # Final resets
-        self.thread.finished.connect(
-            lambda: self.start_load_timeseries_button.setEnabled(True)
-        )
-        self.thread.finished.connect(
-            lambda: self.append_log_message("Analysis completed!", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_SUCCESS)
-        )
+    def start_brightness_series_analysis(self):
+        analysis_start_brightness_series_analysis(self)
     
     def update_progress(self, value):
         self.analysis_progress_bar.setValue(max(0, min(100, value)))
 
-    def process_results(self, temperature_recordings, brightness_timeseries):
-        self.temperature_recordings = temperature_recordings
-        self.brightness_timeseries = brightness_timeseries
-        self.analysis_progress_bar.setValue(100)
-        self.analysis_progress_bar.setFormat("Analysis completed (%p%)")
-        self.freezing_temperatures = get_freezing_temperature(
-            self.temperature_recordings,
-            self.brightness_timeseries
-        )
-        self.num_tubes = len(self.inner_circles)  # Use the loaded inner circles
-        self.current_tube = 0
-        self.append_log_message("Data loaded successfully!", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_SUCCESS)
-        
-        # Count valid freezing points
-        valid_freezing_points = sum(1 for data in self.freezing_temperatures.values() 
-                                    if data['temperature'] is not None and data['timestamp'] is not None)
-        self.append_log_message(
-            f"Detected freezing points for {valid_freezing_points} out of {self.num_tubes} tubes",
-            self.LOG_TAB_ANALYZE,
-            self.LOG_LEVEL_INFO,
-        )
-        
-        self.update_brightness_timeseries_plot()
-        self.enable_controls()
+    def apply_analysis_results(self, temperature_recordings, brightness_timeseries):
+        analysis_apply_analysis_results(self, temperature_recordings, brightness_timeseries)
 
     def update_subprocess_log(self, message):
         self.update_log_signal.emit(message, self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
         
-    def enable_controls(self):
-        self.next_button.setEnabled(True)
-        self.prev_button.setEnabled(True)
-        self.discard_button.setEnabled(True)
-        self.value_input.setEnabled(True)
-        self.save_button_freezing_temperatures.setEnabled(True)
-        self.load_button_freezing_temperatures.setEnabled(True)
+    def enable_analysis_review_controls(self):
+        analysis_enable_analysis_review_controls(self)
 
     def next_tube(self):
         if self.current_tube < self.num_tubes - 1:
             self.current_tube += 1
-            self.update_brightness_timeseries_plot()
+            self.refresh_current_tube_brightness_plot()
 
     def previous_tube(self):
         if self.current_tube > 0:
             self.current_tube -= 1
-            self.update_brightness_timeseries_plot()
+            self.refresh_current_tube_brightness_plot()
 
-    def discard_tube(self):
-        """
-        Discard current tube, set the temperature to 0 C
-        """
-        if not hasattr(self, 'current_tube_brightness') or not hasattr(self, 'current_tube_timestamps'):
-            self.append_log_message(
-                "No tube data is loaded. Run the analysis before discarding a tube.",
-                self.LOG_TAB_ANALYZE,
-                self.LOG_LEVEL_WARNING,
-            )
-            return
-
-        bright_range = self.current_tube_brightness  # already a numpy array
-        time_range = self.current_tube_timestamps  # already a numpy array
-
-        # Find the index of the largest decrease
-        freezing_index = 0
-        freezing_temp = 0
-        freezing_brightness = bright_range[freezing_index]
-        freezing_timestamp = time_range[freezing_index]
-
-        # Update the freezing temperature for this tube
-        self.freezing_temperatures[self.current_tube] = {
-            'temperature': freezing_temp,
-            'timestamp': freezing_timestamp
-        }
-
-        # Remove old freezing point if it exists
-        if hasattr(self, 'freezing_point'):
-            # self.freezing_point.remove()
-            # Note @2025-04-06 : NotImplementedError from matplotlib artist.py. Try another way to delete it.
-            self.freezing_point.set_data([], [])  # 清空数据
-            self.freezing_point.set_label("")
-
-        # Plot new freezing point
-        self.freezing_point, = self.ax2.plot(freezing_temp, freezing_brightness, 'ro', markersize=10,
-                                            label=f"Freezing Point: {freezing_temp:.2f}°C")
-        self.ax2.legend()
-        self.canvas2.draw()
-        self.append_log_message(
-            f"Updated freezing point for tube {self.current_tube}: {freezing_temp:.2f}°C at timestamp {freezing_timestamp}",
-            self.LOG_TAB_ANALYZE,
-            self.LOG_LEVEL_INFO,
-        )
+    def discard_current_tube_freezing_point(self):
+        analysis_discard_current_tube_freezing_point(self)
 
     def go_to_tube(self):
         try:
             tube_number = int(self.value_input.text())
             if 0 <= tube_number < self.num_tubes:
                 self.current_tube = tube_number
-                self.update_brightness_timeseries_plot()
+                self.refresh_current_tube_brightness_plot()
             else:
                 self.append_log_message(
                     f"Invalid tube number. Please enter a number between 0 and {self.num_tubes - 1}",
@@ -1492,254 +892,23 @@ class InteractivePlot(QMainWindow):
         except ValueError:
             self.append_log_message("Please enter a valid integer", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_WARNING)
             
-    def update_brightness_timeseries_plot(self):
-        try:
-            if not hasattr(self, 'brightness_timeseries') or not self.brightness_timeseries:
-                self.append_log_message(
-                    "No data loaded. Please run the analysis first.",
-                    self.LOG_TAB_ANALYZE,
-                    self.LOG_LEVEL_WARNING,
-                )
-                return
+    def refresh_current_tube_brightness_plot(self):
+        analysis_refresh_current_tube_brightness_plot(self)
 
-            if self.current_tube < len(self.inner_circles):
-                self.ax2.clear()
-
-                # Align temperature and brightness data
-                common_timestamps = np.intersect1d(self.temperature_recordings['timestamp'], 
-                                                   self.brightness_timeseries['timestamp'])
-                temp_indices = np.searchsorted(self.temperature_recordings['timestamp'], common_timestamps)
-                bright_indices = np.searchsorted(self.brightness_timeseries['timestamp'], common_timestamps)
-
-                self.current_tube_temperature = self.temperature_recordings['temperature'][temp_indices]
-                self.current_tube_brightness = self.brightness_timeseries[self.current_tube][bright_indices]
-                self.current_tube_timestamps = common_timestamps
-
-                # Plot brightness vs temperature
-                self.line, = self.ax2.plot(self.current_tube_temperature, self.current_tube_brightness, 'b-')
-                self.ax2.invert_xaxis()
-                self.ax2.set_xlabel("Temperature (°C)")
-                self.ax2.set_ylabel("Brightness")
-                self.ax2.set_title(f"Brightness vs Temperature for Tube {self.current_tube}")
-                self.ax2.set_xlim((0, self.temperature_recordings['temperature'].min()))
-
-                # Mark freezing event with a red dot
-                self.update_freezing_point()
-
-                # Create SpanSelector
-                self.span = SpanSelector(
-                    self.ax2, self.on_brightness_span_select, 'horizontal', useblit=True,
-                    props=dict(alpha=0.5, facecolor='red'),
-                    interactive=True, drag_from_anywhere=True
-                )
-
-                self.canvas2.draw()
-                self.append_log_message(
-                    f"Displaying data for tube {self.current_tube}",
-                    self.LOG_TAB_ANALYZE,
-                    self.LOG_LEVEL_DEBUG,
-                )
-            else:
-                self.append_log_message(
-                    f"Invalid index: {self.current_tube}",
-                    self.LOG_TAB_ANALYZE,
-                    self.LOG_LEVEL_WARNING,
-                )
-        
-        except Exception as e:
-            error_msg = f"Error: {str(e)}\n\n{traceback.format_exc()}"
-            self.show_plot_error(self.ax2, "An error occurred", error_msg)
-            self.append_log_message(error_msg, self.LOG_TAB_ANALYZE, self.LOG_LEVEL_ERROR)
-
-        finally:
-            self.canvas2.draw()
-
-    def update_freezing_point(self, xmin=None, xmax=None):
-        if xmin is None and xmax is None:
-            if self.current_tube in self.freezing_temperatures:
-                freezing_data = self.freezing_temperatures[self.current_tube]
-                freezing_temp = freezing_data['temperature']
-                freezing_timestamp = freezing_data['timestamp']
-                if freezing_temp is not None and freezing_timestamp is not None:
-                    freezing_temp_index = np.argmin(np.abs(self.current_tube_timestamps - freezing_timestamp))
-                    freezing_brightness = self.current_tube_brightness[freezing_temp_index]
-                else:
-                    self.append_log_message(
-                        f"No freezing point detected for tube {self.current_tube}",
-                        self.LOG_TAB_ANALYZE,
-                        self.LOG_LEVEL_WARNING,
-                    )
-                    return
-            else:
-                self.append_log_message(
-                    f"No freezing data available for tube {self.current_tube}",
-                    self.LOG_TAB_ANALYZE,
-                    self.LOG_LEVEL_WARNING,
-                )
-                return
-        else:
-            # Recalculate freezing point within the selected range
-            mask = (self.current_tube_temperature >= xmin) & (self.current_tube_temperature <= xmax)
-            if np.sum(mask) >= 3:
-                temp_range = self.current_tube_temperature[mask].to_numpy()
-                bright_range = self.current_tube_brightness[mask]  # already a numpy array
-                time_range = self.current_tube_timestamps[mask]  # already a numpy array
-                
-                # Calculate the derivative (rate of change) of brightness
-                brightness_derivative = np.diff(bright_range)
-                
-                # Find the index of the largest decrease
-                freezing_index = np.argmin(brightness_derivative)
-                freezing_temp = temp_range[freezing_index]
-                freezing_brightness = bright_range[freezing_index]
-                freezing_timestamp = time_range[freezing_index]
-
-                # Update the freezing temperature for this tube
-                self.freezing_temperatures[self.current_tube] = {
-                    'temperature': freezing_temp,
-                    'timestamp': freezing_timestamp
-                }
-            else:
-                self.append_log_message(
-                    "Selected range is too small. Please select a larger range.",
-                    self.LOG_TAB_ANALYZE,
-                    self.LOG_LEVEL_WARNING,
-                )
-                return
-
-        # Remove old freezing point if it exists
-        if hasattr(self, 'freezing_point'):
-            # self.freezing_point.remove()
-            # Note @2025-04-06 : NotImplementedError from matplotlib artist.py. Try another way to delete it.
-            self.freezing_point.set_data([], [])  # 清空数据
-            self.freezing_point.set_label("")
-        
-        # Plot new freezing point
-        self.freezing_point, = self.ax2.plot(freezing_temp, freezing_brightness, 'ro', markersize=10, 
-                                            label=f"Freezing Point: {freezing_temp:.2f}°C")
-        self.ax2.legend()
-        self.canvas2.draw()
-        self.append_log_message(
-            f"Updated freezing point for tube {self.current_tube}: {freezing_temp:.2f}°C at timestamp {freezing_timestamp}",
-            self.LOG_TAB_ANALYZE,
-            self.LOG_LEVEL_INFO,
-        )
+    def refresh_current_tube_freezing_marker(self, xmin=None, xmax=None):
+        analysis_refresh_current_tube_freezing_marker(self, xmin=xmin, xmax=xmax)
 
     def on_brightness_span_select(self, xmin, xmax):
-        self.update_freezing_point(xmin, xmax)
+        self.refresh_current_tube_freezing_marker(xmin, xmax)
 
-    def load_crop_image(self):
-        loaded_image = self.load_image_from_path(self.sample_image_path, "Sample image", self.LOG_TAB_PREPARE)
-        if loaded_image is None:
-            return
+    def load_selected_image_into_preparation_view(self):
+        image_load_selected_image_into_preparation_view(self)
 
-        self.ax_crop.clear()
-        self.original_image = loaded_image
-        self.rotated_image = self.original_image.copy()
-        self.processed_image = None
-        self.crop_region = None
-        self.rotation_params = None
-        img_rgb = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
-        self.ax_crop.imshow(img_rgb)
-        self.ax_crop.axis('off')
+    def apply_preparation_image_rotation(self):
+        image_apply_preparation_image_rotation(self)
 
-        if self.crop_selector is not None:
-            self.crop_selector.set_active(False)
-
-        self.crop_selector = RectangleSelector(
-            self.ax_crop, self.on_crop_select,
-            useblit=True,
-            button=[1, 3],  # Left and right mouse buttons
-            minspanx=5, minspany=5,
-            spancoords='pixels',
-            interactive=True
-        )
-
-        self.canvas_crop.draw()
-
-    def apply_rotation(self):
-        try:
-            # Check if an image is loaded
-            if self.original_image is None:
-                self.append_log_message("No image loaded. Please load an image first.", self.LOG_TAB_PREPARE, self.LOG_LEVEL_WARNING)
-                return
-
-            rotation_angle = float(self.rotation_input_crop.text())
-
-            # Get image center
-            height, width = self.original_image.shape[:2]
-            center = (width / 2, height / 2)
-
-            # Create rotation matrix
-            rotation_matrix = cv2.getRotationMatrix2D(center, rotation_angle, 1.0)  # A positive rotation_angle rotates the image counter-clockwise
-
-            # Perform rotation
-            self.rotated_image = cv2.warpAffine(
-                self.original_image,
-                rotation_matrix,
-                (width, height),
-                flags=cv2.INTER_LINEAR
-            )
-
-            # Display rotated image
-            self.ax_crop.clear()
-            img_rgb = cv2.cvtColor(self.rotated_image, cv2.COLOR_BGR2RGB)
-            self.ax_crop.imshow(img_rgb)
-            self.ax_crop.axis('off')
-
-            # Reinitialize crop selector
-            if self.crop_selector is not None:
-                self.crop_selector.set_active(False)
-
-            self.crop_selector = RectangleSelector(
-                self.ax_crop, self.on_crop_select,
-                useblit=True,
-                button=[1, 3],  # Left and right mouse buttons
-                minspanx=5, minspany=5,
-                spancoords='pixels',
-                interactive=True
-            )
-
-            self.canvas_crop.draw()
-
-            # Store rotation parameters for later use
-            self.rotation_params = {
-                'angle': rotation_angle,
-                'center': center,
-                'matrix': rotation_matrix
-            }
-
-        except ValueError:
-            self.append_log_message("Invalid rotation angle. Please enter a number.", self.LOG_TAB_PREPARE, self.LOG_LEVEL_WARNING)
-        except Exception as e:
-            self.append_log_message(f"Error during rotation: {str(e)}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_ERROR)
-
-    def restore_original_image(self):
-        if self.original_image is not None:
-            self.rotated_image = self.original_image.copy()
-            self.processed_image = None
-            self.rotation_params = None
-            self.ax_crop.clear()
-            img_rgb = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
-            self.ax_crop.imshow(img_rgb)
-            self.ax_crop.axis('off')
-
-            # Reinitialize crop selector
-            if self.crop_selector is not None:
-                self.crop_selector.set_active(False)
-
-            self.crop_selector = RectangleSelector(
-                self.ax_crop, self.on_crop_select,
-                useblit=True,
-                button=[1, 3],  # Left and right mouse buttons
-                minspanx=5, minspany=5,
-                spancoords='pixels',
-                interactive=True
-            )
-
-            self.canvas_crop.draw()
-            self.crop_region = None
-            self.append_log_message("Restored the original image and cleared crop/rotation state.", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
+    def restore_original_preparation_image(self):
+        image_restore_original_preparation_image(self)
 
     def on_crop_select(self, eclick, erelease):
         x1, y1 = int(eclick.xdata), int(eclick.ydata)
@@ -1747,65 +916,12 @@ class InteractivePlot(QMainWindow):
         self.crop_region = (min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1))
         self.append_log_message(f"Crop region set to: {self.crop_region}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
 
-    def apply_crop(self):
-        try:
-            # Check if an image is loaded and crop region is selected
-            if self.rotated_image is None:
-                self.append_log_message("No image loaded. Please load an image first.", self.LOG_TAB_PREPARE, self.LOG_LEVEL_WARNING)
-                return
+    def apply_selected_crop_to_tube_detection(self):
+        image_apply_selected_crop_to_tube_detection(self)
 
-            if self.crop_region is None:
-                self.append_log_message("No crop region selected. Please select a region.", self.LOG_TAB_PREPARE, self.LOG_LEVEL_WARNING)
-                return
+    def load_analysis_inner_circle_locations(self):
+        return analysis_load_analysis_inner_circle_locations(self)
 
-            # Crop the rotated image
-            x, y, w, h = self.crop_region
-            cropped_img = self.rotated_image[y:y+h, x:x+w]
-
-            # Prepare for tube detection by modifying the original workflow
-            self.processed_image = cropped_img
-
-            # Update UI to show what was done
-            self.append_log_message(f"Crop region: {self.crop_region}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
-            self.append_log_message(f"Cropped image size: {cropped_img.shape[:2]}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
-
-            # If rotation was applied, store the rotation parameters
-            if self.rotation_params is not None:
-                rotation_angle = self.rotation_params['angle']
-                self.append_log_message(f"Rotation angle: {rotation_angle} degrees", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
-
-            # Switch to Tube Locating tab
-            self.tab_widget.setCurrentWidget(self.tab1)
-
-            # Run tube detection with the processed image
-            self.plot_tube_detection_results()
-
-            self.append_log_message("Crop and rotation applied to tube detection", self.LOG_TAB_PREPARE, self.LOG_LEVEL_SUCCESS)
-
-        except Exception as e:
-            self.append_log_message(f"Error during crop: {str(e)}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_ERROR)
-
-    def load_inner_circles(self):
-        try:
-            if not self.validate_file_path(self.tube_location_file, "Tube locations file", self.LOG_TAB_ANALYZE):
-                return False
-
-            with open(self.tube_location_file, 'rb') as f:
-                self.inner_circles = self.normalize_inner_circles(pickle.load(f))
-            self.append_log_message(
-                f"Loaded {len(self.inner_circles)} inner circles from {self.tube_location_file}",
-                self.LOG_TAB_ANALYZE,
-                self.LOG_LEVEL_SUCCESS,
-            )
-            return True
-        except Exception as e:
-            self.append_log_message(
-                f"Error loading inner circles: {str(e)}",
-                self.LOG_TAB_ANALYZE,
-                self.LOG_LEVEL_ERROR,
-            )
-            return False
-            
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

@@ -75,6 +75,44 @@ Then follow the workflow in the GUI or the additional usage notes in `usage/ä½¿ç
 - Inner-circle positions can be exported and reused in the analysis step.
 - Freezing-temperature results can be saved and loaded later.
 
+## GUI Module Structure
+
+The GUI code is split across `gui*.py` files by responsibility so that UI layout, state, workflow logic, and helpers can evolve separately.
+
+```text
+gui.py
+gui_state.py
+gui_tabs.py
+gui_services.py
+gui_workers.py
+gui_detection_controller.py
+gui_analysis_controller.py
+gui_image_controller.py
+gui_logging.py
+gui_selection_cache.py
+```
+
+### File Responsibilities
+
+- `gui.py`: main application entry point and `InteractivePlot` window. It wires together the tabs, state containers, controllers, logging, cache restore/save, keyboard shortcuts, and Qt signal plumbing.
+- `gui_state.py`: dataclasses for persistent window state, split into selection state, image-preparation state, tube-detection state, and analysis state.
+- `gui_tabs.py`: builds the four main tabs and their widgets. This file should stay focused on layout creation and signal connections rather than analysis logic.
+- `gui_services.py`: pure helper functions used by the GUI, including tube detection orchestration, overlay rendering, image rotation/cropping helpers, coordinate restoration, and freezing-temperature serialization/deserialization.
+- `gui_workers.py`: background and stream utilities. It contains the brightness-loading worker that runs in a `QThread` and the stream adapter used to push console output into GUI log panes.
+- `gui_detection_controller.py`: handlers for the `Locate Tubes` tab, including running detection, responding to plot clicks, redrawing manual edits, and saving inner-circle locations.
+- `gui_analysis_controller.py`: handlers for the `Analyze Freezing` tab, including loading saved tube locations, starting brightness extraction, applying analysis results, reviewing each tube, updating the selected freezing point, and importing/exporting freezing results.
+- `gui_image_controller.py`: handlers for the `Prepare Image` tab, including loading the selected image, rotating it, restoring the original view, and applying the selected crop to downstream tube detection.
+- `gui_logging.py`: shared log formatting and routing helpers. It chooses the correct log widget for a tab, formats timestamped log messages, and supports broadcasting messages to all GUI log panes.
+- `gui_selection_cache.py`: shared helpers for `.gui_selection_cache.json`, including restoring cached input paths, refreshing labels, and persisting the last-used files and folders.
+
+### Dependency Direction
+
+- `gui.py` is the coordinator and imports the other `gui*.py` modules.
+- `gui_tabs.py` depends on the window methods exposed by `gui.py`, but it should not implement business logic itself.
+- The controller modules call into `gui_services.py` and update the `InteractivePlot` window state.
+- `gui_workers.py`, `gui_logging.py`, and `gui_selection_cache.py` provide cross-cutting support used by `gui.py` and the controllers.
+- `gui_state.py` stays data-only and should not depend on Qt widgets or controller code.
+
 ### Saved Inner-Circle Coordinate Fix
 
 Earlier versions of the GUI could save incorrect `y` coordinates for inner circles when the preview image had been rotated before export. The symptom was that saved circles looked mirrored on the `y` axis when reloaded or visualized with `test.py`.
