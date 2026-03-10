@@ -1214,45 +1214,49 @@ class InteractivePlot(QMainWindow):
                 self.LOG_LEVEL_WARNING,
             )
 
+    def normalize_inner_circles(self, circles, default_method="loaded"):
+        normalized_circles = []
+        for circle in circles:
+            normalized_circle = dict(circle)
+            normalized_circle['x'] = int(round(normalized_circle['x']))
+            normalized_circle['y'] = int(round(normalized_circle['y']))
+            normalized_circle['radius'] = int(round(normalized_circle.get('radius', 10)))
+            normalized_circle['method'] = normalized_circle.get('method', default_method)
+            normalized_circles.append(normalized_circle)
+        return normalized_circles
+
+    def restore_circle_to_original_image(self, circle):
+        restored_circle = dict(circle)
+        restored_circle['x'] = int(round(restored_circle['x']))
+        restored_circle['y'] = int(round(restored_circle['y']))
+        restored_circle['radius'] = int(round(restored_circle.get('radius', 10)))
+
+        if self.crop_region is not None:
+            x_offset, y_offset, _, _ = self.crop_region
+            restored_circle['x'] += x_offset
+            restored_circle['y'] += y_offset
+
+        if self.rotation_params is not None:
+            inverse_matrix = cv2.invertAffineTransform(self.rotation_params['matrix'])
+            original_x, original_y = inverse_matrix @ np.array(
+                [restored_circle['x'], restored_circle['y'], 1.0],
+                dtype=float,
+            )
+            restored_circle['x'] = int(round(original_x))
+            restored_circle['y'] = int(round(original_y))
+
+        return restored_circle
+
     def save_inner_circles(self):
         default_filename = f"inner_circles_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
         default_filepath = os.path.join(".", default_filename)
 
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Inner Circles", default_filepath, "Pickle Files (*.pkl)")
         if file_path:
-            # Restore locations relative to original image
-            restored_circles = []
-            for circle in self.inner_circles:
-                restored_circle = circle.copy()
-
-                # Step 1: Restore to rotated image coordinates
-                # If cropping was applied, add back the crop offsets
-                if self.crop_region is not None:
-                    x_offset, y_offset, _, _ = self.crop_region
-                    restored_circle['x'] += x_offset
-                    restored_circle['y'] += y_offset
-
-                # Step 2: Rotate back to original image coordinates
-                if self.rotation_params is not None:
-                    center = self.rotation_params['center']
-                    rotation_angle = self.rotation_params['angle']
-
-                    # Convert point relative to center
-                    x_rel = restored_circle['x'] - center[0]
-                    y_rel = restored_circle['y'] - center[1]
-
-                    # Apply the inverse of the preview rotation to recover original-image coordinates.
-                    cos_theta = np.cos(np.deg2rad(rotation_angle))
-                    sin_theta = np.sin(np.deg2rad(rotation_angle))
-
-                    x_restored = x_rel * cos_theta + y_rel * sin_theta
-                    y_restored = -x_rel * sin_theta + y_rel * cos_theta
-
-                    # Restore absolute coordinates
-                    restored_circle['x'] = int(x_restored + center[0])
-                    restored_circle['y'] = int(y_restored + center[1])
-
-                restored_circles.append(restored_circle)
+            restored_circles = [
+                self.restore_circle_to_original_image(circle)
+                for circle in self.normalize_inner_circles(self.inner_circles, default_method="manual")
+            ]
 
             with open(file_path, 'wb') as f:
                 pickle.dump(restored_circles, f)
@@ -1787,7 +1791,7 @@ class InteractivePlot(QMainWindow):
                 return False
 
             with open(self.tube_location_file, 'rb') as f:
-                self.inner_circles = pickle.load(f)
+                self.inner_circles = self.normalize_inner_circles(pickle.load(f))
             self.append_log_message(
                 f"Loaded {len(self.inner_circles)} inner circles from {self.tube_location_file}",
                 self.LOG_TAB_ANALYZE,

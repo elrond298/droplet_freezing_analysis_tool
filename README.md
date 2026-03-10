@@ -75,6 +75,27 @@ Then follow the workflow in the GUI or the additional usage notes in `usage/ä½¿ç
 - Inner-circle positions can be exported and reused in the analysis step.
 - Freezing-temperature results can be saved and loaded later.
 
+### Saved Inner-Circle Coordinate Fix
+
+Earlier versions of the GUI could save incorrect `y` coordinates for inner circles when the preview image had been rotated before export. The symptom was that saved circles looked mirrored on the `y` axis when reloaded or visualized with `test.py`.
+
+Cause:
+
+- The GUI detected circles in rotated preview coordinates.
+- During export, it used hand-written trigonometric inverse-rotation logic to map those coordinates back to the original image.
+- That manual inverse did not match OpenCV's actual image-space affine transform, so `y` values could be mirrored in saved files.
+
+Fix:
+
+- The GUI now restores exported circle coordinates by inverting the exact OpenCV affine matrix created for the preview rotation.
+- Crop offsets are applied before the inverse transform so saved circles end up in original-image coordinates.
+- Loaded circle records are also normalized to integer image coordinates before analysis.
+
+Impact on existing files:
+
+- Inner-circle location files saved before this fix may still contain incorrect `y` coordinates.
+- Re-export those files from the updated GUI, or repair them separately, before using them for freezing analysis.
+
 ### Keyboard Shortcuts
 
 - `Ctrl+1` to `Ctrl+4`: switch between the main tabs.
