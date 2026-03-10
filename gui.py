@@ -6,14 +6,14 @@ import numpy as np
 import pandas as pd
 import pickle
 import datetime
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QListWidget, QLineEdit, QSlider, QLabel, QSpinBox, 
                              QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox, QFormLayout,
                              QSizePolicy, QScrollArea, QProgressBar)
-from PyQt5.QtCore import Qt, QTimer, QObject, pyqtSignal, QThread, QRectF
-from PyQt5.QtGui import QPixmap, QPainter, QPen, QTextCursor
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal, QThread, QRectF
+from PyQt6.QtGui import QPixmap, QPainter, QPen, QTextCursor
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 from matplotlib.widgets import SpanSelector, RectangleSelector
 
@@ -154,7 +154,7 @@ class InteractivePlot(QMainWindow):
         # 创建标签页
         self.tab_widget = QTabWidget()
         self.tab_widget.setUsesScrollButtons(True)
-        self.tab_widget.setElideMode(Qt.ElideNone)
+        self.tab_widget.setElideMode(Qt.TextElideMode.ElideNone)
         self.tab_widget.tabBar().setExpanding(False)
         main_layout.addWidget(self.tab_widget)
 
@@ -218,8 +218,8 @@ class InteractivePlot(QMainWindow):
     def create_scrollable_panel(self, content_widget):
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         scroll_area.setWidget(content_widget)
         return scroll_area
 
@@ -270,10 +270,10 @@ class InteractivePlot(QMainWindow):
         )
 
     def write_log_entry(self, widget, formatted_message):
-        widget.moveCursor(QTextCursor.End)
+        widget.moveCursor(QTextCursor.MoveOperation.End)
         widget.insertHtml(formatted_message)
         widget.insertPlainText("\n")
-        widget.moveCursor(QTextCursor.End)
+        widget.moveCursor(QTextCursor.MoveOperation.End)
 
     def update_log(self, message, tab_number, level):
         self.append_log_message(message, tab_number, level)
@@ -511,7 +511,7 @@ class InteractivePlot(QMainWindow):
         layout.setSpacing(8)
         
         button = QPushButton(button_text)
-        button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         button.clicked.connect(selection_method)
         
         label = QLabel("Current: Not selected")
@@ -547,7 +547,7 @@ class InteractivePlot(QMainWindow):
 
         # 创建右侧的控制面板
         right_widget = QWidget()
-        right_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        right_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         right_layout = QVBoxLayout(right_widget)
         right_layout.setSpacing(12)
 
@@ -599,7 +599,7 @@ class InteractivePlot(QMainWindow):
         min_area_group = QWidget()
         min_area_layout = QVBoxLayout(min_area_group)
         min_area_layout.setContentsMargins(0, 0, 0, 0)
-        self.min_area_slider = QSlider(Qt.Horizontal)
+        self.min_area_slider = QSlider(Qt.Orientation.Horizontal)
         self.min_area_slider.setMinimum(10)
         self.min_area_slider.setMaximum(1500)
         self.min_area_slider.setSingleStep(10)
@@ -613,7 +613,7 @@ class InteractivePlot(QMainWindow):
         circularity_group = QWidget()
         circularity_layout = QVBoxLayout(circularity_group)
         circularity_layout.setContentsMargins(0, 0, 0, 0)
-        self.circularity_slider = QSlider(Qt.Horizontal)
+        self.circularity_slider = QSlider(Qt.Orientation.Horizontal)
         self.circularity_slider.setMinimum(10)
         self.circularity_slider.setMaximum(100)
         self.circularity_slider.setSingleStep(5)
@@ -676,7 +676,7 @@ class InteractivePlot(QMainWindow):
 
         # 创建右侧的控制面板
         right_widget = QWidget()
-        right_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        right_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         right_layout = QVBoxLayout(right_widget)
         right_layout.setSpacing(12)
 
@@ -791,7 +791,7 @@ class InteractivePlot(QMainWindow):
 
         # Create control panel
         control_widget = QWidget()
-        control_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        control_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         control_layout = QVBoxLayout(control_widget)
         control_layout.setSpacing(12)
 
@@ -1647,4 +1647,4 @@ if __name__ == '__main__':
         main_window.showMaximized()
     else:
         main_window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

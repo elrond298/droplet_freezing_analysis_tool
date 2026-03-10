@@ -1,7 +1,7 @@
 numpy
 pandas
 matplotlib
-PyQt5
+PyQt6
 ipywidgets
 opencv-python-headless
 scikit-learn

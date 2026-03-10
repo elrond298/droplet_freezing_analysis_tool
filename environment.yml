@@ -8,7 +8,7 @@ dependencies:
   - numpy
   - pillow
   - scipy
-  - pyqt
+  - pyqt6
   - matplotlib
   - opencv
   - scikit-learn

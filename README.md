@@ -35,3 +35,22 @@ python3 gui.py
 ```
 
 Then follow the instructions in `usage/使用说明.pdf` to complete the recognition.
+
+## Qt Version
+
+The GUI now targets PyQt6. If you are updating an existing virtual environment, reinstall the Qt dependency with:
+
+```bash
+pip install --upgrade PyQt6
+```
+
+## Linux Qt Troubleshooting
+
+If the GUI fails with an `xcb` platform plugin error such as `libxcb-cursor.so.0 => not found`, install the missing system package:
+
+```bash
+sudo apt update
+sudo apt install libxcb-cursor0
+```
+
+On Debian/Ubuntu systems, this is required by Qt 6.5+ for the `xcb` platform plugin.
