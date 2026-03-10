@@ -2,8 +2,6 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import ndimage
-from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
 from ipywidgets import interact, interactive, fixed, IntSlider, FloatSlider, Text
 
 def locate_pcr_tubes(image, min_area=100, circularity_threshold=0.2):
@@ -43,9 +41,126 @@ def locate_pcr_tubes(image, min_area=100, circularity_threshold=0.2):
     return pcr_tubes, img
 
 
+def _wrap_half_pi(angle):
+    return (angle + np.pi / 2) % np.pi - np.pi / 2
+
+
+def _pairwise_distances(coords):
+    deltas = coords[:, None, :] - coords[None, :, :]
+    return np.linalg.norm(deltas, axis=2)
+
+
+def _nearest_neighbor_vectors(coords, max_neighbors=8):
+    if len(coords) < 2:
+        return np.empty((0, 2), dtype=float)
+
+    distances = _pairwise_distances(coords)
+    np.fill_diagonal(distances, np.inf)
+
+    nearest_count = min(max_neighbors, len(coords) - 1)
+    nearest_indices = np.argpartition(distances, nearest_count, axis=1)[:, :nearest_count]
+    deltas = coords[nearest_indices] - coords[:, None, :]
+    flattened = deltas.reshape(-1, 2)
+    lengths = np.linalg.norm(flattened, axis=1)
+    return flattened[lengths > 1e-6]
+
+
+def _estimate_grid_axes(coords):
+    vectors = _nearest_neighbor_vectors(coords)
+    if len(vectors) == 0:
+        return np.array([1.0, 0.0]), np.array([0.0, 1.0]), vectors
+
+    lengths = np.linalg.norm(vectors, axis=1)
+    distances = _pairwise_distances(coords)
+    np.fill_diagonal(distances, np.inf)
+    baseline = np.median(np.min(distances, axis=1))
+    cutoff = baseline * 1.6 if np.isfinite(baseline) and baseline > 0 else np.percentile(lengths, 35)
+    candidate_vectors = vectors[lengths <= cutoff]
+    if len(candidate_vectors) == 0:
+        candidate_vectors = vectors
+
+    angles = np.mod(np.arctan2(candidate_vectors[:, 1], candidate_vectors[:, 0]), np.pi)
+    best_angle = 0.0
+    best_error = np.inf
+
+    for angle in angles:
+        error = np.mean(
+            np.minimum(
+                np.abs(_wrap_half_pi(angles - angle)),
+                np.abs(_wrap_half_pi(angles - (angle + np.pi / 2))),
+            )
+        )
+        if error < best_error:
+            best_error = error
+            best_angle = angle
+
+    if abs(np.sin(best_angle)) > abs(np.cos(best_angle)):
+        best_angle = np.mod(best_angle + np.pi / 2, np.pi)
+
+    axis_x = np.array([np.cos(best_angle), np.sin(best_angle)])
+    axis_y = np.array([-axis_x[1], axis_x[0]])
+    return axis_x, axis_y, candidate_vectors
+
+
+def _estimate_axis_spacing(vectors, axis_primary, axis_secondary):
+    if len(vectors) == 0:
+        return 1.0
+
+    parallel = np.abs(vectors @ axis_primary)
+    perpendicular = np.abs(vectors @ axis_secondary)
+    aligned = parallel > 1e-6
+    aligned &= perpendicular <= np.maximum(parallel * 0.35, 2.0)
+
+    samples = parallel[aligned]
+    if len(samples) == 0:
+        samples = parallel[parallel > 1e-6]
+    if len(samples) == 0:
+        return 1.0
+    return float(np.median(samples))
+
+
+def _estimate_lattice_offset(values, spacing):
+    if spacing <= 0 or len(values) == 0:
+        return 0.0
+    angles = values / spacing * 2 * np.pi
+    complex_mean = np.mean(np.exp(1j * angles))
+    if np.isclose(np.abs(complex_mean), 0):
+        return float(np.min(values))
+    phase = np.angle(complex_mean) % (2 * np.pi)
+    offset = phase / (2 * np.pi) * spacing
+    return float(offset)
+
+
+def _select_grid_window(raw_indices, grid_size):
+    if len(raw_indices) == 0:
+        return 0
+
+    candidates = range(int(np.min(raw_indices)) - grid_size, int(np.max(raw_indices)) + grid_size + 1)
+    target_center = (grid_size - 1) / 2.0
+    best_start = int(np.min(raw_indices))
+    best_score = None
+
+    for start in candidates:
+        shifted = raw_indices - start
+        in_range = (shifted >= 0) & (shifted < grid_size)
+        in_count = int(np.sum(in_range))
+        if in_count == 0:
+            continue
+
+        centered = shifted[in_range]
+        center_error = abs(np.mean(centered) - target_center)
+        spread_error = abs((np.max(centered) - np.min(centered)) - min(grid_size - 1, np.max(raw_indices) - np.min(raw_indices)))
+        score = (-in_count, center_error, spread_error, abs(start))
+        if best_score is None or score < best_score:
+            best_score = score
+            best_start = start
+
+    return best_start
+
+
 def calculate_rotation_angle(coords):
     """
-    Calculates the rotation angle of the PCR tubes based on Principal Component Analysis (PCA).
+    Calculates the dominant grid rotation angle from local nearest-neighbor directions.
 
     Args:
         coords (numpy.ndarray): A 2D array of coordinates (x, y) of the detected PCR tubes.
@@ -53,22 +168,14 @@ def calculate_rotation_angle(coords):
     Returns:
         float: The calculated rotation angle in degrees, adjusted to be between -45 and 45 degrees.
     """
-    # Perform PCA
-    pca = PCA(n_components=2)
-    pca.fit(coords)
+    axis_x, _, _ = _estimate_grid_axes(np.asarray(coords, dtype=float))
+    angle_degrees = np.degrees(np.arctan2(axis_x[1], axis_x[0]))
 
-    # Get the angle of the first principal component
-    angle = np.arctan2(pca.components_[0, 1], pca.components_[0, 0])
-    
-    # Convert to degrees
-    angle_degrees = np.degrees(angle)
-    
-    # Adjust angle to be between -45 and 45 degrees
     if angle_degrees > 45:
         angle_degrees -= 90
     elif angle_degrees < -45:
         angle_degrees += 90
-    
+
     return angle_degrees
 
 
@@ -108,53 +215,76 @@ def infer_missing_tubes(pcr_tubes, image_shape, tubes_size=(16, 10), rotate='aut
     if not pcr_tubes:
         return []
 
-    # Extract coordinates
-    coords = np.array([[tube['x'], tube['y']] for tube in pcr_tubes])
+    coords = np.array([[tube['x'], tube['y']] for tube in pcr_tubes], dtype=float)
+    n_rows, n_cols = tubes_size
 
-    # Calculate rotation angle
     if rotate == 'auto':
         angle = calculate_rotation_angle(coords)
+        axis_x, axis_y, neighbor_vectors = _estimate_grid_axes(coords)
     else:
         angle = float(rotate)
+        radians = np.radians(angle)
+        axis_x = np.array([np.cos(radians), np.sin(radians)])
+        axis_y = np.array([-np.sin(radians), np.cos(radians)])
+        neighbor_vectors = _nearest_neighbor_vectors(coords)
     print(f"Calculated rotation angle: {angle:.2f} degrees")
 
-    # Rotate coordinates
-    center = tuple(np.mean(coords, axis=0))
-    rotated_coords = np.array([rotate_point(center, (x, y), np.radians(-angle)) for x, y in coords])
+    spacing_x = _estimate_axis_spacing(neighbor_vectors, axis_x, axis_y)
+    spacing_y = _estimate_axis_spacing(neighbor_vectors, axis_y, axis_x)
 
-    # Perform KMeans clustering separately for x and y coordinates of rotated points
-    n_rows, n_cols = tubes_size
-    kmeans_x = KMeans(n_clusters=n_cols, random_state=0, n_init=10).fit(rotated_coords[:, 0].reshape(-1, 1))
-    kmeans_y = KMeans(n_clusters=n_rows, random_state=0, n_init=10).fit(rotated_coords[:, 1].reshape(-1, 1))
+    projected_x = coords @ axis_x
+    projected_y = coords @ axis_y
+    offset_x = _estimate_lattice_offset(projected_x, spacing_x)
+    offset_y = _estimate_lattice_offset(projected_y, spacing_y)
 
-    # Sort cluster centers to get grid lines
-    x_lines = np.sort(kmeans_x.cluster_centers_.flatten())
-    y_lines = np.sort(kmeans_y.cluster_centers_.flatten())
+    raw_cols = np.rint((projected_x - offset_x) / spacing_x).astype(int)
+    raw_rows = np.rint((projected_y - offset_y) / spacing_y).astype(int)
 
-    # Calculate average radius
+    col_start = _select_grid_window(raw_cols, n_cols)
+    row_start = _select_grid_window(raw_rows, n_rows)
+
+    cols = raw_cols - col_start
+    rows = raw_rows - row_start
+    in_bounds = (cols >= 0) & (cols < n_cols) & (rows >= 0) & (rows < n_rows)
+    if not np.any(in_bounds):
+        return []
+
+    fit_rows = rows[in_bounds]
+    fit_cols = cols[in_bounds]
+    fit_coords = coords[in_bounds]
+    design = np.column_stack([np.ones(len(fit_coords)), fit_cols, fit_rows])
+    params_x, _, _, _ = np.linalg.lstsq(design, fit_coords[:, 0], rcond=None)
+    params_y, _, _, _ = np.linalg.lstsq(design, fit_coords[:, 1], rcond=None)
+
+    origin = np.array([params_x[0], params_y[0]])
+    step_col = np.array([params_x[1], params_y[1]])
+    step_row = np.array([params_x[2], params_y[2]])
+
     avg_radius = np.mean([tube['radius'] for tube in pcr_tubes])
+    occupancy = set()
+    for row, col in zip(fit_rows, fit_cols):
+        occupancy.add((int(row), int(col)))
 
-    # Create a set to store detected tube coordinates for faster lookup
-    detected_tubes = {(int(tube['x']), int(tube['y'])) for tube in pcr_tubes}
-
-    # Infer missing tubes
+    height, width = image_shape[:2]
     inferred_tubes = []
-    for y in y_lines:
-        for x in x_lines:
-            # Rotate the point back to the original orientation
-            original_x, original_y = rotate_point(center, (x, y), np.radians(angle))
-            original_x, original_y = int(original_x), int(original_y)
-            
-            if (original_x, original_y) not in detected_tubes:
-                # Calculate the minimum distance to all detected tubes
-                min_distance = min(np.linalg.norm([tube['x'] - original_x, tube['y'] - original_y]) for tube in pcr_tubes)
-                if min_distance > avg_radius:
-                    inferred_tubes.append({
-                        "x": original_x,
-                        "y": original_y,
-                        "radius": int(avg_radius),
-                        "inferred": True
-                    })
+    for row in range(n_rows):
+        for col in range(n_cols):
+            if (row, col) in occupancy:
+                continue
+
+            lattice_point = origin + col * step_col + row * step_row
+            original_x, original_y = int(round(lattice_point[0])), int(round(lattice_point[1]))
+            if not (0 <= original_x < width and 0 <= original_y < height):
+                continue
+
+            min_distance = min(np.linalg.norm([tube['x'] - original_x, tube['y'] - original_y]) for tube in pcr_tubes)
+            if min_distance > avg_radius:
+                inferred_tubes.append({
+                    "x": original_x,
+                    "y": original_y,
+                    "radius": int(round(avg_radius)),
+                    "inferred": True
+                })
 
     return inferred_tubes
 
