@@ -285,7 +285,7 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
     window.next_button.setEnabled(False)
     window.discard_button.setEnabled(False)
     window.value_input.setEnabled(False)
-    window.send_to_inp_button.setEnabled(True)
+    window.send_to_inp_button.setEnabled(False)
     window.save_button_freezing_temperatures.setEnabled(False)
     window.load_button_freezing_temperatures.setEnabled(False)
 

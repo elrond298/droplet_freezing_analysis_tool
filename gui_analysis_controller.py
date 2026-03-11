@@ -155,6 +155,7 @@ def enable_analysis_review_controls(window: InteractivePlot) -> None:
     window.prev_button.setEnabled(True)
     window.discard_button.setEnabled(True)
     window.value_input.setEnabled(True)
+    window.send_to_inp_button.setEnabled(True)
     window.save_button_freezing_temperatures.setEnabled(True)
     window.load_button_freezing_temperatures.setEnabled(True)
 
