@@ -172,6 +172,9 @@ def discard_current_tube_freezing_point(window: InteractivePlot) -> None:
     freezing_data = discard_freezing_point(window.current_tube_brightness, window.current_tube_timestamps)
     _render_freezing_point(window, freezing_data, persist=True)
 
+    if window.advance_after_marking_tube_not_available and window.current_tube < window.num_tubes - 1:
+        window.next_tube()
+
 
 def refresh_current_tube_brightness_plot(window: InteractivePlot) -> None:
     try:

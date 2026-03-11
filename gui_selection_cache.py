@@ -74,6 +74,7 @@ def save_selection_cache(window: InteractivePlot) -> None:
         'restore_last_selected_inputs': window.restore_last_selected_inputs,
         'auto_save_selected_inputs': window.auto_save_selected_inputs,
         'auto_open_tube_detection_after_crop': window.auto_open_tube_detection_after_crop,
+        'advance_after_marking_tube_not_available': window.advance_after_marking_tube_not_available,
         'show_hover_coordinates_in_status_bar': window.show_hover_coordinates_in_status_bar,
         'inp_default_droplet_volume_ul': window.inp_default_droplet_volume_ul,
         'inp_default_dilution_factor': window.inp_default_dilution_factor,
@@ -126,6 +127,10 @@ def restore_cached_selections(window: InteractivePlot) -> None:
     auto_open_tube_detection_after_crop = cached_data.get('auto_open_tube_detection_after_crop')
     if isinstance(auto_open_tube_detection_after_crop, bool):
         window.auto_open_tube_detection_after_crop = auto_open_tube_detection_after_crop
+
+    advance_after_marking_tube_not_available = cached_data.get('advance_after_marking_tube_not_available')
+    if isinstance(advance_after_marking_tube_not_available, bool):
+        window.advance_after_marking_tube_not_available = advance_after_marking_tube_not_available
 
     show_hover_coordinates_in_status_bar = cached_data.get('show_hover_coordinates_in_status_bar')
     if isinstance(show_hover_coordinates_in_status_bar, bool):

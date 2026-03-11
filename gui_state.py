@@ -16,6 +16,7 @@ class SelectionState:
     restore_last_selected_inputs: bool = True
     auto_save_selected_inputs: bool = True
     auto_open_tube_detection_after_crop: bool = True
+    advance_after_marking_tube_not_available: bool = True
     show_hover_coordinates_in_status_bar: bool = True
     inp_default_droplet_volume_ul: float = 10.0
     inp_default_dilution_factor: float = 1.0

@@ -277,6 +277,14 @@ class InteractivePlot(QMainWindow):
         self.selection_state.auto_open_tube_detection_after_crop = value
 
     @property
+    def advance_after_marking_tube_not_available(self) -> bool:
+        return self.selection_state.advance_after_marking_tube_not_available
+
+    @advance_after_marking_tube_not_available.setter
+    def advance_after_marking_tube_not_available(self, value: bool) -> None:
+        self.selection_state.advance_after_marking_tube_not_available = value
+
+    @property
     def inp_default_droplet_volume_ul(self) -> float:
         return self.selection_state.inp_default_droplet_volume_ul
 
@@ -523,6 +531,11 @@ class InteractivePlot(QMainWindow):
             self.auto_open_tube_detection_after_crop_checkbox.setChecked(self.auto_open_tube_detection_after_crop)
             self.auto_open_tube_detection_after_crop_checkbox.blockSignals(False)
 
+        if hasattr(self, 'advance_after_marking_tube_not_available_checkbox'):
+            self.advance_after_marking_tube_not_available_checkbox.blockSignals(True)
+            self.advance_after_marking_tube_not_available_checkbox.setChecked(self.advance_after_marking_tube_not_available)
+            self.advance_after_marking_tube_not_available_checkbox.blockSignals(False)
+
         if hasattr(self, 'show_hover_coordinates_checkbox'):
             self.show_hover_coordinates_checkbox.blockSignals(True)
             self.show_hover_coordinates_checkbox.setChecked(self.show_hover_coordinates_in_status_bar)
@@ -647,6 +660,13 @@ class InteractivePlot(QMainWindow):
         self.auto_open_tube_detection_after_crop_checkbox.toggled.connect(self.update_auto_open_tube_detection_after_crop)
         layout.addWidget(self.auto_open_tube_detection_after_crop_checkbox)
 
+        self.advance_after_marking_tube_not_available_checkbox = QCheckBox(
+            "After 'Mark Current Tube As Not Available' in Analyze Freezing, move to the next tube"
+        )
+        self.advance_after_marking_tube_not_available_checkbox.setChecked(self.advance_after_marking_tube_not_available)
+        self.advance_after_marking_tube_not_available_checkbox.toggled.connect(self.update_advance_after_marking_tube_not_available)
+        layout.addWidget(self.advance_after_marking_tube_not_available_checkbox)
+
         return session_group
 
     def create_plot_behavior_group(self) -> QGroupBox:
@@ -718,6 +738,10 @@ class InteractivePlot(QMainWindow):
 
     def update_auto_open_tube_detection_after_crop(self, checked: bool) -> None:
         self.auto_open_tube_detection_after_crop = bool(checked)
+        self.save_selection_cache()
+
+    def update_advance_after_marking_tube_not_available(self, checked: bool) -> None:
+        self.advance_after_marking_tube_not_available = bool(checked)
         self.save_selection_cache()
 
     def update_show_hover_coordinates_in_status_bar(self, checked: bool) -> None:
