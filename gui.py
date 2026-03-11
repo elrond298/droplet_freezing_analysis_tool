@@ -4,10 +4,11 @@ import sys
 import os
 import html
 import datetime
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 from matplotlib import rcParams
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLineEdit, QSlider, QLabel, QSpinBox, QCheckBox,
+                             QComboBox, QListWidget,
                              QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox, QFormLayout,
                              QSizePolicy, QScrollArea, QProgressBar, QDoubleSpinBox, QDialog,
                              QStyle,
@@ -75,6 +76,13 @@ from gui_tabs import (
 )
 from gui_workers import StreamToTextEdit
 import cv2
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+    from matplotlib.figure import Figure
+
+    from gui_tabs import BoundedPopupComboBox, FullMessageNavigationToolbar
         
 class InteractivePlot(QMainWindow):
     """
@@ -109,6 +117,69 @@ class InteractivePlot(QMainWindow):
     DEFAULT_FONT_SIZE = 10
     MIN_FONT_SIZE = 8
     MAX_FONT_SIZE = 24
+
+    # These UI attributes are attached during tab construction in gui_tabs.py.
+    # Declaring them here gives the editor a stable definition site for navigation and typing.
+    figure: Figure
+    canvas: FigureCanvas
+    toolbar: FullMessageNavigationToolbar
+    ax: Axes
+    tube_image_summary_label: QLabel
+    refresh_button: QPushButton
+    tubes_size_input: QLineEdit
+    rotation_input: QLineEdit
+    min_area_slider: QSlider
+    min_area_label: QLabel
+    circularity_slider: QSlider
+    circularity_label: QLabel
+    save_button: QPushButton
+    log_text_edit: QTextEdit
+
+    figure2: Figure
+    canvas2: FigureCanvas
+    toolbar2: FullMessageNavigationToolbar
+    ax2: Axes
+    image_directory_label: QLabel
+    temperature_recording_label: QLabel
+    tube_locations_label: QLabel
+    analysis_temperature_cutoff_input: QLineEdit
+    start_load_timeseries_button: QPushButton
+    analysis_progress_bar: QProgressBar
+    tube_sort_combo: BoundedPopupComboBox
+    tube_selector_combo: BoundedPopupComboBox
+    prev_button: QPushButton
+    next_button: QPushButton
+    discard_button: QPushButton
+    send_to_inp_button: QPushButton
+    save_button_freezing_temperatures: QPushButton
+    load_button_freezing_temperatures: QPushButton
+    log_text_edit2: QTextEdit
+
+    figure_inp: Figure
+    canvas_inp: FigureCanvas
+    toolbar_inp: FullMessageNavigationToolbar
+    ax_inp: Axes
+    add_inp_file_button: QPushButton
+    inp_preset_combo: QComboBox
+    add_inp_preset_button: QPushButton
+    add_current_analysis_to_inp_button: QPushButton
+    inp_dataset_list: QListWidget
+    remove_inp_dataset_button: QPushButton
+    clear_inp_datasets_button: QPushButton
+    log_text_edit_inp: QTextEdit
+
+    figure_crop: Figure
+    canvas_crop: FigureCanvas
+    toolbar_crop: FullMessageNavigationToolbar
+    ax_crop: Axes
+    sample_image_path_label: QLabel
+    sample_image_path_button: QPushButton
+    load_crop_image_button: QPushButton
+    rotation_input_crop: QLineEdit
+    apply_rotation_button: QPushButton
+    apply_crop_button: QPushButton
+    restore_image_button: QPushButton
+    log_text_edit_prep: QTextEdit
 
     def __init__(self) -> None:
         super().__init__()
