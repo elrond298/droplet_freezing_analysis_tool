@@ -64,6 +64,7 @@ def run_tube_detection_and_render_plot(window: InteractivePlot) -> None:
             pad=12,
         )
         window.ax.axis('off')
+        window.apply_figure_font_sizes(window.ax)
 
         window.append_log_message(
             f"Detected {len(window.pcr_tubes)} PCR tubes",
@@ -128,6 +129,7 @@ def redraw_manual_tube_detection_plot(window: InteractivePlot) -> None:
         pad=12,
     )
     window.ax.axis('off')
+    window.apply_figure_font_sizes(window.ax)
     window.canvas.draw()
     window.append_log_message(
         f"Redrawn: PCR Tubes: {len(window.pcr_tubes)}, Inner Circles: {len(window.inner_circles)}",

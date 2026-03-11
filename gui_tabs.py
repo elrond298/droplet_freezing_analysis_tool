@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 from PyQt6.QtWidgets import (
+    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
     QProgressBar,
     QPushButton,
     QSizePolicy,
@@ -257,10 +260,13 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
 
     export_group = QGroupBox("Import / Export")
     export_layout = QVBoxLayout(export_group)
+    window.send_to_inp_button = QPushButton("Add Current Results To INP Plot")
+    window.send_to_inp_button.clicked.connect(window.prompt_and_add_current_analysis_to_inp)
     window.save_button_freezing_temperatures = QPushButton("Export Reviewed Freezing Temperatures")
     window.save_button_freezing_temperatures.clicked.connect(window.save_freezing_events_data)
     window.load_button_freezing_temperatures = QPushButton("Import Saved Freezing Temperatures")
     window.load_button_freezing_temperatures.clicked.connect(window.load_freezing_events_data)
+    export_layout.addWidget(window.send_to_inp_button)
     export_layout.addWidget(window.save_button_freezing_temperatures)
     export_layout.addWidget(window.load_button_freezing_temperatures)
     right_layout.addWidget(export_group)
@@ -279,8 +285,122 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
     window.next_button.setEnabled(False)
     window.discard_button.setEnabled(False)
     window.value_input.setEnabled(False)
+    window.send_to_inp_button.setEnabled(True)
     window.save_button_freezing_temperatures.setEnabled(False)
     window.load_button_freezing_temperatures.setEnabled(False)
+
+
+def build_inp_tab(window: InteractivePlot) -> None:
+    tab4_layout = QHBoxLayout(window.tab4)
+    tab4_layout.setContentsMargins(12, 12, 12, 12)
+    tab4_layout.setSpacing(12)
+
+    left_widget = QWidget()
+    left_layout = QVBoxLayout(left_widget)
+    left_layout.setContentsMargins(0, 0, 0, 0)
+    left_layout.setSpacing(4)
+    window.figure_inp = Figure(figsize=(5, 4), dpi=100)
+    window.configure_figure_padding(window.figure_inp)
+    window.canvas_inp = FigureCanvas(window.figure_inp)
+    window.toolbar_inp = FullMessageNavigationToolbar(window.canvas_inp, window)
+    left_layout.addWidget(window.toolbar_inp)
+    left_layout.addWidget(window.canvas_inp, 1)
+
+    window.ax_inp = window.figure_inp.add_subplot(111)
+    window.show_inp_plot_instructions()
+
+    right_widget = QWidget()
+    right_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+    right_layout = QVBoxLayout(right_widget)
+    right_layout.setSpacing(12)
+
+    right_layout.addWidget(window.create_tab_header(
+        "Compare cumulative INP concentrations",
+        "Load reviewed freezing temperatures, apply the droplet volume and dilution settings, then compare one or more INP curves on the same plot."
+    ))
+
+    settings_group = QGroupBox("Calculation Settings")
+    settings_layout = QFormLayout(settings_group)
+
+    window.inp_dataset_label_input = QLineEdit()
+    window.inp_dataset_label_input.setPlaceholderText("Optional custom label for the next dataset")
+    settings_layout.addRow("Dataset label:", window.inp_dataset_label_input)
+
+    window.inp_droplet_volume_input = QLineEdit(f"{window.inp_default_droplet_volume_ul:g}")
+    window.inp_droplet_volume_input.setPlaceholderText("Example: 10")
+    settings_layout.addRow("Droplet volume (uL):", window.inp_droplet_volume_input)
+
+    window.inp_dilution_factor_input = QLineEdit(f"{window.inp_default_dilution_factor:g}")
+    window.inp_dilution_factor_input.setPlaceholderText("Example: 1")
+    settings_layout.addRow("Dilution factor:", window.inp_dilution_factor_input)
+
+    settings_hint = QLabel(
+        "INP concentration is calculated as -ln(1 - frozen fraction) divided by droplet volume in mL, then multiplied by the dilution factor."
+    )
+    settings_hint.setObjectName("hintLabel")
+    settings_hint.setWordWrap(True)
+    settings_layout.addRow("", settings_hint)
+    right_layout.addWidget(settings_group)
+
+    sources_group = QGroupBox("Add Freezing Temperatures")
+    sources_layout = QVBoxLayout(sources_group)
+
+    window.add_inp_file_button = QPushButton("Add Freezing Temperatures File")
+    window.add_inp_file_button.clicked.connect(window.add_inp_dataset_from_files)
+    sources_layout.addWidget(window.add_inp_file_button)
+
+    preset_row = QHBoxLayout()
+    window.inp_preset_combo = QComboBox()
+    examples_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'examples')
+    window.inp_preset_combo.addItem(
+        "Water control example",
+        os.path.join(examples_dir, 'water_freezing_temperatures.txt'),
+    )
+    window.inp_preset_combo.addItem(
+        "Yeast example",
+        os.path.join(examples_dir, 'yeast_freezing_temperatures.txt'),
+    )
+    preset_row.addWidget(window.inp_preset_combo, 1)
+
+    window.add_inp_preset_button = QPushButton("Add Preset")
+    window.add_inp_preset_button.clicked.connect(window.add_selected_inp_preset)
+    preset_row.addWidget(window.add_inp_preset_button)
+    sources_layout.addLayout(preset_row)
+
+    window.add_current_analysis_to_inp_button = QPushButton("Add Current Results From Analyze Freezing")
+    window.add_current_analysis_to_inp_button.clicked.connect(window.add_current_analysis_to_inp)
+    sources_layout.addWidget(window.add_current_analysis_to_inp_button)
+    right_layout.addWidget(sources_group)
+
+    datasets_group = QGroupBox("Loaded INP Datasets")
+    datasets_layout = QVBoxLayout(datasets_group)
+
+    window.inp_dataset_list = QListWidget()
+    window.inp_dataset_list.setMinimumHeight(180)
+    datasets_layout.addWidget(window.inp_dataset_list)
+
+    dataset_buttons = QHBoxLayout()
+    window.remove_inp_dataset_button = QPushButton("Remove Selected Dataset")
+    window.remove_inp_dataset_button.clicked.connect(window.remove_selected_inp_dataset)
+    dataset_buttons.addWidget(window.remove_inp_dataset_button)
+
+    window.clear_inp_datasets_button = QPushButton("Clear All Datasets")
+    window.clear_inp_datasets_button.clicked.connect(window.clear_inp_datasets)
+    dataset_buttons.addWidget(window.clear_inp_datasets_button)
+    datasets_layout.addLayout(dataset_buttons)
+    right_layout.addWidget(datasets_group)
+
+    log_group = create_log_group(window, "INP Log", 'log_text_edit_inp')
+    right_layout.addWidget(log_group, 1)
+
+    right_layout.addStretch(1)
+
+    right_scroll_area = window.create_scrollable_panel(right_widget)
+
+    tab4_layout.addWidget(left_widget, 5)
+    tab4_layout.addWidget(right_scroll_area, 3)
+
+    window.refresh_inp_plot()
 
 
 def build_image_cropping_tab(window: InteractivePlot) -> None:
@@ -377,9 +497,9 @@ def build_image_cropping_tab(window: InteractivePlot) -> None:
 
 
 def build_settings_tab(window: InteractivePlot) -> None:
-    tab4_layout = QHBoxLayout(window.tab4)
-    tab4_layout.setContentsMargins(12, 12, 12, 12)
-    tab4_layout.setSpacing(12)
+    tab5_layout = QHBoxLayout(window.tab5)
+    tab5_layout.setContentsMargins(12, 12, 12, 12)
+    tab5_layout.setSpacing(12)
 
     settings_widget = QWidget()
     settings_layout = QVBoxLayout(settings_widget)
@@ -391,6 +511,7 @@ def build_settings_tab(window: InteractivePlot) -> None:
     ))
 
     settings_layout.addWidget(window.create_detection_defaults_group())
+    settings_layout.addWidget(window.create_inp_defaults_group())
     settings_layout.addWidget(window.create_session_behavior_group())
     settings_layout.addWidget(window.create_plot_behavior_group())
     settings_layout.addWidget(window.create_display_controls())
@@ -398,4 +519,4 @@ def build_settings_tab(window: InteractivePlot) -> None:
     settings_layout.addStretch(1)
 
     settings_scroll_area = window.create_scrollable_panel(settings_widget)
-    tab4_layout.addWidget(settings_scroll_area)
+    tab5_layout.addWidget(settings_scroll_area)

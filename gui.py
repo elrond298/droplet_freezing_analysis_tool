@@ -4,10 +4,12 @@ import sys
 import os
 import html
 from typing import Any, Callable
+from matplotlib import rcParams
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLineEdit, QSlider, QLabel, QSpinBox, QCheckBox,
                              QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox, QFormLayout,
-                             QSizePolicy, QScrollArea, QProgressBar)
+                             QSizePolicy, QScrollArea, QProgressBar, QDoubleSpinBox, QDialog,
+                             QDialogButtonBox)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QKeySequence, QShortcut
 from matplotlib.widgets import RectangleSelector
@@ -22,6 +24,14 @@ from gui_analysis_controller import (
     save_freezing_events_data as analysis_save_freezing_events_data,
     refresh_current_tube_brightness_plot as analysis_refresh_current_tube_brightness_plot,
     refresh_current_tube_freezing_marker as analysis_refresh_current_tube_freezing_marker,
+)
+from gui_inp_controller import (
+    add_current_analysis_to_inp as inp_add_current_analysis_to_inp,
+    add_inp_dataset_from_files as inp_add_inp_dataset_from_files,
+    add_selected_inp_preset as inp_add_selected_inp_preset,
+    clear_inp_datasets as inp_clear_inp_datasets,
+    refresh_inp_plot as inp_refresh_inp_plot,
+    remove_selected_inp_dataset as inp_remove_selected_inp_dataset,
 )
 from gui_detection_controller import (
     handle_tube_detection_plot_click as detection_handle_tube_detection_plot_click,
@@ -53,10 +63,11 @@ from gui_services import (
     normalize_inner_circles,
     restore_circle_to_original_image,
 )
-from gui_state import AnalysisState, DetectionState, ImagePrepState, SelectionState
+from gui_state import AnalysisState, DetectionState, ImagePrepState, InpState, SelectionState
 from gui_tabs import (
     build_freezing_detection_tab,
     build_image_cropping_tab,
+    build_inp_tab,
     build_settings_tab,
     build_tube_locating_tab,
 )
@@ -78,6 +89,7 @@ class InteractivePlot(QMainWindow):
     LOG_TAB_PREPARE = 1
     LOG_TAB_LOCATE = 2
     LOG_TAB_ANALYZE = 3
+    LOG_TAB_INP = 4
     LOG_TAB_ALL = 0
     LOG_LEVEL_DEBUG = "DEBUG"
     LOG_LEVEL_INFO = "INFO"
@@ -100,6 +112,7 @@ class InteractivePlot(QMainWindow):
         super().__init__()
         self.setWindowTitle('Droplet Freezing Assay Offline Analysis')
         self.initialize_state()
+        self.apply_matplotlib_font_defaults()
         self.configure_window_for_screen()
         self.apply_styles()
         self.selection_cache_path = os.path.join(
@@ -124,15 +137,18 @@ class InteractivePlot(QMainWindow):
         self.tab2 = QWidget()
         self.tab3 = QWidget()
         self.tab4 = QWidget()
+        self.tab5 = QWidget()
         self.tab_widget.addTab(self.tab3, "1. Prepare Image")
         self.tab_widget.addTab(self.tab1, "2. Locate Tubes")
         self.tab_widget.addTab(self.tab2, "3. Analyze Freezing")
-        self.tab_widget.addTab(self.tab4, "4. Settings")
+        self.tab_widget.addTab(self.tab4, "4. INP Concentration")
+        self.tab_widget.addTab(self.tab5, "5. Settings")
 
         # Set up tab layouts
         self.setup_tube_locating_tab()
         self.setup_freezing_detection_tab()
         self.setup_image_cropping_tab()
+        self.setup_inp_tab()
         self.setup_settings_tab()
         self.configure_console_redirect()
         self.configure_shortcuts()
@@ -161,6 +177,7 @@ class InteractivePlot(QMainWindow):
         self.image_prep_state = ImagePrepState()
         self.detection_state = DetectionState()
         self.analysis_state = AnalysisState()
+        self.inp_state = InpState()
 
     @property
     def ui_font_size(self) -> int:
@@ -257,6 +274,22 @@ class InteractivePlot(QMainWindow):
     @auto_open_tube_detection_after_crop.setter
     def auto_open_tube_detection_after_crop(self, value: bool) -> None:
         self.selection_state.auto_open_tube_detection_after_crop = value
+
+    @property
+    def inp_default_droplet_volume_ul(self) -> float:
+        return self.selection_state.inp_default_droplet_volume_ul
+
+    @inp_default_droplet_volume_ul.setter
+    def inp_default_droplet_volume_ul(self, value: float) -> None:
+        self.selection_state.inp_default_droplet_volume_ul = float(value)
+
+    @property
+    def inp_default_dilution_factor(self) -> float:
+        return self.selection_state.inp_default_dilution_factor
+
+    @inp_default_dilution_factor.setter
+    def inp_default_dilution_factor(self, value: float) -> None:
+        self.selection_state.inp_default_dilution_factor = float(value)
 
     @property
     def show_hover_coordinates_in_status_bar(self) -> bool:
@@ -426,6 +459,14 @@ class InteractivePlot(QMainWindow):
     def current_tube_timestamps(self, value: Any) -> None:
         self.analysis_state.current_tube_timestamps = value
 
+    @property
+    def inp_datasets(self) -> list[dict[str, Any]]:
+        return self.inp_state.datasets
+
+    @inp_datasets.setter
+    def inp_datasets(self, value: list[dict[str, Any]]) -> None:
+        self.inp_state.datasets = value
+
     def get_default_font_size(self) -> int:
         app = QApplication.instance()
         if app is not None:
@@ -485,6 +526,18 @@ class InteractivePlot(QMainWindow):
             self.show_hover_coordinates_checkbox.blockSignals(True)
             self.show_hover_coordinates_checkbox.setChecked(self.show_hover_coordinates_in_status_bar)
             self.show_hover_coordinates_checkbox.blockSignals(False)
+
+        if hasattr(self, 'settings_inp_volume_spinbox'):
+            self.settings_inp_volume_spinbox.blockSignals(True)
+            self.settings_inp_volume_spinbox.setValue(self.inp_default_droplet_volume_ul)
+            self.settings_inp_volume_spinbox.blockSignals(False)
+
+        if hasattr(self, 'settings_inp_dilution_spinbox'):
+            self.settings_inp_dilution_spinbox.blockSignals(True)
+            self.settings_inp_dilution_spinbox.setValue(self.inp_default_dilution_factor)
+            self.settings_inp_dilution_spinbox.blockSignals(False)
+
+        self.apply_inp_defaults_to_controls()
 
     def apply_detection_defaults_to_locate_controls(self, schedule: bool = False) -> None:
         self.tubes_size = self.detection_default_tubes_size
@@ -548,6 +601,31 @@ class InteractivePlot(QMainWindow):
         layout.addRow("Default circularity threshold:", self.settings_circularity_spinbox)
 
         return detection_group
+
+    def create_inp_defaults_group(self) -> QGroupBox:
+        inp_group = QGroupBox("INP Defaults")
+        layout = QFormLayout(inp_group)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(10)
+
+        self.settings_inp_volume_spinbox = QDoubleSpinBox()
+        self.settings_inp_volume_spinbox.setRange(0.01, 1000000.0)
+        self.settings_inp_volume_spinbox.setDecimals(3)
+        self.settings_inp_volume_spinbox.setSingleStep(1.0)
+        self.settings_inp_volume_spinbox.setSuffix(" uL")
+        self.settings_inp_volume_spinbox.setValue(self.inp_default_droplet_volume_ul)
+        self.settings_inp_volume_spinbox.valueChanged.connect(self.update_inp_default_droplet_volume_ul)
+        layout.addRow("Default droplet volume:", self.settings_inp_volume_spinbox)
+
+        self.settings_inp_dilution_spinbox = QDoubleSpinBox()
+        self.settings_inp_dilution_spinbox.setRange(0.000001, 1000000.0)
+        self.settings_inp_dilution_spinbox.setDecimals(6)
+        self.settings_inp_dilution_spinbox.setSingleStep(0.1)
+        self.settings_inp_dilution_spinbox.setValue(self.inp_default_dilution_factor)
+        self.settings_inp_dilution_spinbox.valueChanged.connect(self.update_inp_default_dilution_factor)
+        layout.addRow("Default dilution factor:", self.settings_inp_dilution_spinbox)
+
+        return inp_group
 
     def create_session_behavior_group(self) -> QGroupBox:
         session_group = QGroupBox("Session And File Behavior")
@@ -649,6 +727,65 @@ class InteractivePlot(QMainWindow):
             self.statusBar().clearMessage()
         self.save_selection_cache()
 
+    def update_inp_default_droplet_volume_ul(self, value: float) -> None:
+        self.inp_default_droplet_volume_ul = float(value)
+        self.apply_inp_defaults_to_controls()
+        self.save_selection_cache()
+
+    def update_inp_default_dilution_factor(self, value: float) -> None:
+        self.inp_default_dilution_factor = float(value)
+        self.apply_inp_defaults_to_controls()
+        self.save_selection_cache()
+
+    def apply_inp_defaults_to_controls(self) -> None:
+        if hasattr(self, 'inp_droplet_volume_input'):
+            self.inp_droplet_volume_input.blockSignals(True)
+            self.inp_droplet_volume_input.setText(f"{self.inp_default_droplet_volume_ul:g}")
+            self.inp_droplet_volume_input.blockSignals(False)
+
+        if hasattr(self, 'inp_dilution_factor_input'):
+            self.inp_dilution_factor_input.blockSignals(True)
+            self.inp_dilution_factor_input.setText(f"{self.inp_default_dilution_factor:g}")
+            self.inp_dilution_factor_input.blockSignals(False)
+
+    def prompt_for_inp_dataset_parameters(self, label: str = "") -> tuple[str, float, float] | None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Add Results To INP Plot")
+
+        layout = QVBoxLayout(dialog)
+        form_layout = QFormLayout()
+
+        label_input = QLineEdit(label)
+        label_input.setPlaceholderText("Optional dataset label")
+        form_layout.addRow("Dataset label:", label_input)
+
+        volume_spinbox = QDoubleSpinBox()
+        volume_spinbox.setRange(0.01, 1000000.0)
+        volume_spinbox.setDecimals(3)
+        volume_spinbox.setSingleStep(1.0)
+        volume_spinbox.setSuffix(" uL")
+        volume_spinbox.setValue(self.inp_default_droplet_volume_ul)
+        form_layout.addRow("Droplet volume:", volume_spinbox)
+
+        dilution_spinbox = QDoubleSpinBox()
+        dilution_spinbox.setRange(0.000001, 1000000.0)
+        dilution_spinbox.setDecimals(6)
+        dilution_spinbox.setSingleStep(0.1)
+        dilution_spinbox.setValue(self.inp_default_dilution_factor)
+        form_layout.addRow("Dilution factor:", dilution_spinbox)
+
+        layout.addLayout(form_layout)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        if dialog.exec() != int(QDialog.DialogCode.Accepted):
+            return None
+
+        return label_input.text().strip(), float(volume_spinbox.value()), float(dilution_spinbox.value())
+
     def create_display_controls(self) -> QGroupBox:
         display_group = QGroupBox("Display")
         layout = QHBoxLayout(display_group)
@@ -682,7 +819,8 @@ class InteractivePlot(QMainWindow):
             "Ctrl+1: Open Prepare Image tab",
             "Ctrl+2: Open Locate Tubes tab",
             "Ctrl+3: Open Analyze Freezing tab",
-            "Ctrl+4: Open Settings tab",
+            "Ctrl+4: Open INP Concentration tab",
+            "Ctrl+5: Open Settings tab",
         )
 
         for shortcut_text in shortcuts:
@@ -705,6 +843,7 @@ class InteractivePlot(QMainWindow):
             ("Ctrl+2", lambda: self.select_tab_by_index(1)),
             ("Ctrl+3", lambda: self.select_tab_by_index(2)),
             ("Ctrl+4", lambda: self.select_tab_by_index(3)),
+            ("Ctrl+5", lambda: self.select_tab_by_index(4)),
         )
 
         for key_sequence, callback in shortcut_definitions:
@@ -722,7 +861,7 @@ class InteractivePlot(QMainWindow):
         self.set_ui_font_size(self.get_default_font_size())
 
     def open_settings_tab(self) -> None:
-        self.select_tab_by_index(3)
+        self.select_tab_by_index(4)
 
     def select_tab_by_index(self, index: int) -> None:
         if 0 <= index < self.tab_widget.count():
@@ -743,13 +882,78 @@ class InteractivePlot(QMainWindow):
             self.font_size_spinbox.setValue(font_size)
             self.font_size_spinbox.blockSignals(False)
 
+        self.apply_matplotlib_font_defaults()
         self.apply_styles()
+        self.refresh_figure_fonts()
 
         if hasattr(self, 'ax2') and self.brightness_timeseries is None:
             self.show_analysis_plot_instructions()
 
         if persist and hasattr(self, 'selection_cache_path'):
             self.save_selection_cache()
+
+    def apply_matplotlib_font_defaults(self) -> None:
+        base_font_size = float(self.ui_font_size)
+        rcParams['font.size'] = base_font_size
+        rcParams['axes.titlesize'] = base_font_size + 1
+        rcParams['axes.labelsize'] = base_font_size
+        rcParams['xtick.labelsize'] = max(base_font_size - 1, float(self.MIN_FONT_SIZE))
+        rcParams['ytick.labelsize'] = max(base_font_size - 1, float(self.MIN_FONT_SIZE))
+        rcParams['legend.fontsize'] = max(base_font_size - 1, float(self.MIN_FONT_SIZE))
+        rcParams['legend.title_fontsize'] = base_font_size
+
+    def refresh_figure_fonts(self) -> None:
+        figure_entries = (
+            ('ax', 'canvas'),
+            ('ax2', 'canvas2'),
+            ('ax_crop', 'canvas_crop'),
+            ('ax_inp', 'canvas_inp'),
+        )
+        for axes_name, canvas_name in figure_entries:
+            axes = getattr(self, axes_name, None)
+            if axes is None:
+                continue
+            self.apply_figure_font_sizes(axes)
+            canvas = getattr(self, canvas_name, None)
+            if canvas is not None:
+                canvas.draw_idle()
+
+    def apply_figure_font_sizes(self, axes: Any) -> None:
+        title_size = self.ui_font_size + 1
+        label_size = self.ui_font_size
+        tick_size = max(self.ui_font_size - 1, self.MIN_FONT_SIZE)
+        body_size = self.ui_font_size
+
+        axes.title.set_fontsize(title_size)
+        axes.xaxis.label.set_fontsize(label_size)
+        axes.yaxis.label.set_fontsize(label_size)
+        axes.tick_params(axis='both', which='major', labelsize=tick_size)
+        axes.tick_params(axis='both', which='minor', labelsize=tick_size)
+
+        x_offset_text = axes.xaxis.get_offset_text()
+        y_offset_text = axes.yaxis.get_offset_text()
+        if x_offset_text is not None:
+            x_offset_text.set_fontsize(tick_size)
+        if y_offset_text is not None:
+            y_offset_text.set_fontsize(tick_size)
+
+        for text in axes.texts:
+            if text.get_fontfamily() == ['monospace']:
+                text.set_fontsize(max(self.ui_font_size - 1, self.MIN_FONT_SIZE))
+            else:
+                current_size = text.get_fontsize() or body_size
+                if current_size > body_size:
+                    text.set_fontsize(title_size)
+                else:
+                    text.set_fontsize(body_size)
+
+        legend = axes.get_legend()
+        if legend is not None:
+            for text in legend.get_texts():
+                text.set_fontsize(tick_size)
+            legend_title = legend.get_title()
+            if legend_title is not None:
+                legend_title.set_fontsize(label_size)
 
     def configure_window_for_screen(self) -> None:
         screen = QApplication.primaryScreen()
@@ -806,10 +1010,11 @@ class InteractivePlot(QMainWindow):
             ha='left',
             va='top',
             wrap=True,
-            fontsize=9,
+            fontsize=max(self.ui_font_size - 1, self.MIN_FONT_SIZE),
             family='monospace',
             bbox=dict(facecolor='red', alpha=0.12, edgecolor='red', boxstyle='round,pad=0.5')
         )
+        self.apply_figure_font_sizes(axes)
 
     def show_analysis_plot_instructions(self) -> None:
         title_font_size = self.ui_font_size + 3
@@ -846,7 +1051,44 @@ class InteractivePlot(QMainWindow):
             color='#516579',
             bbox=dict(facecolor='#eef5fb', edgecolor='#d6e4f2', boxstyle='round,pad=0.7'),
         )
+        self.apply_figure_font_sizes(self.ax2)
         self.canvas2.draw()
+
+    def show_inp_plot_instructions(self) -> None:
+        title_font_size = self.ui_font_size + 3
+        body_font_size = max(self.ui_font_size, self.MIN_FONT_SIZE)
+
+        self.ax_inp.clear()
+        self.ax_inp.set_xticks([])
+        self.ax_inp.set_yticks([])
+
+        self.ax_inp.text(
+            0.5,
+            0.78,
+            "No INP datasets loaded yet",
+            transform=self.ax_inp.transAxes,
+            ha='center',
+            va='center',
+            fontsize=title_font_size,
+            fontweight='bold',
+            color='#17324d',
+        )
+        self.ax_inp.text(
+            0.5,
+            0.50,
+            "1. Set the droplet volume and dilution factor on the right.\n"
+            "2. Add freezing-temperature files, example presets, or the current Analyze Freezing results.\n"
+            "3. Compare multiple cumulative INP concentration curves on the same plot.",
+            transform=self.ax_inp.transAxes,
+            ha='center',
+            va='center',
+            wrap=True,
+            fontsize=body_font_size,
+            color='#516579',
+            bbox=dict(facecolor='#eef5fb', edgecolor='#d6e4f2', boxstyle='round,pad=0.7'),
+        )
+        self.apply_figure_font_sizes(self.ax_inp)
+        self.canvas_inp.draw()
         
     def get_log_widget(self, tab_number: int) -> QTextEdit | None:
         return logging_get_log_widget(self, tab_number)
@@ -1077,6 +1319,9 @@ class InteractivePlot(QMainWindow):
     def setup_image_cropping_tab(self) -> None:
         build_image_cropping_tab(self)
 
+    def setup_inp_tab(self) -> None:
+        build_inp_tab(self)
+
     def setup_settings_tab(self) -> None:
         build_settings_tab(self)
 
@@ -1266,6 +1511,45 @@ class InteractivePlot(QMainWindow):
 
     def load_analysis_inner_circle_locations(self) -> bool:
         return analysis_load_analysis_inner_circle_locations(self)
+
+    def add_inp_dataset_from_files(self) -> None:
+        inp_add_inp_dataset_from_files(self)
+
+    def add_selected_inp_preset(self) -> None:
+        inp_add_selected_inp_preset(self)
+
+    def add_current_analysis_to_inp(self) -> None:
+        inp_add_current_analysis_to_inp(self)
+
+    def prompt_and_add_current_analysis_to_inp(self) -> None:
+        parameters = self.prompt_for_inp_dataset_parameters()
+        if parameters is None:
+            return
+
+        label, droplet_volume_ul, dilution_factor = parameters
+        if hasattr(self, 'inp_dataset_label_input'):
+            self.inp_dataset_label_input.setText(label)
+        if hasattr(self, 'inp_droplet_volume_input'):
+            self.inp_droplet_volume_input.setText(f"{droplet_volume_ul:g}")
+        if hasattr(self, 'inp_dilution_factor_input'):
+            self.inp_dilution_factor_input.setText(f"{dilution_factor:g}")
+
+        inp_add_current_analysis_to_inp(
+            self,
+            label=label,
+            droplet_volume_ul=droplet_volume_ul,
+            dilution_factor=dilution_factor,
+            auto_export=True,
+        )
+
+    def remove_selected_inp_dataset(self) -> None:
+        inp_remove_selected_inp_dataset(self)
+
+    def clear_inp_datasets(self) -> None:
+        inp_clear_inp_datasets(self)
+
+    def refresh_inp_plot(self) -> None:
+        inp_refresh_inp_plot(self)
 
 
 if __name__ == '__main__':

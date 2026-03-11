@@ -66,6 +66,7 @@ Then follow the workflow in the GUI or the additional usage notes in `usage/ä½¿ç
 - `Prepare Image`: load a source image, rotate it if needed, and crop the region that should be used for tube detection.
 - `Locate Tubes`: detect PCR tubes, adjust detection parameters such as minimum area and circularity, manually review inner circles, and save the tube locations.
 - `Analyze Freezing`: load the image directory, temperature recording, and saved tube locations, run the analysis, inspect each tube, and save or reload freezing-temperature results.
+- `INP Concentration`: load one or more reviewed freezing-temperature datasets, add example presets or the current analysis results, and compare cumulative INP concentration curves on one plot.
 - `Settings`: adjust UI font size and review keyboard shortcuts.
 
 ### GUI Features
@@ -74,6 +75,7 @@ Then follow the workflow in the GUI or the additional usage notes in `usage/ä½¿ç
 - Each workflow tab includes its own log panel for progress updates and errors.
 - Inner-circle positions can be exported and reused in the analysis step.
 - Freezing-temperature results can be saved and loaded later.
+- Reviewed freezing-temperature datasets can be converted into cumulative INP concentration plots with configurable droplet volume and dilution factor.
 
 ## GUI Module Structure
 
@@ -87,6 +89,7 @@ gui_services.py
 gui_workers.py
 gui_detection_controller.py
 gui_analysis_controller.py
+gui_inp_controller.py
 gui_image_controller.py
 gui_logging.py
 gui_selection_cache.py
@@ -101,6 +104,7 @@ gui_selection_cache.py
 - `gui_workers.py`: background and stream utilities. It contains the brightness-loading worker that runs in a `QThread` and the stream adapter used to push console output into GUI log panes.
 - `gui_detection_controller.py`: handlers for the `Locate Tubes` tab, including running detection, responding to plot clicks, redrawing manual edits, and saving inner-circle locations.
 - `gui_analysis_controller.py`: handlers for the `Analyze Freezing` tab, including loading saved tube locations, starting brightness extraction, applying analysis results, reviewing each tube, updating the selected freezing point, and importing/exporting freezing results.
+- `gui_inp_controller.py`: handlers for the `INP Concentration` tab, including loading freezing-temperature datasets from files or presets, pulling in the current analysis results, and redrawing the cumulative INP plot.
 - `gui_image_controller.py`: handlers for the `Prepare Image` tab, including loading the selected image, rotating it, restoring the original view, and applying the selected crop to downstream tube detection.
 - `gui_logging.py`: shared log formatting and routing helpers. It chooses the correct log widget for a tab, formats timestamped log messages, and supports broadcasting messages to all GUI log panes.
 - `gui_selection_cache.py`: shared helpers for `.gui_selection_cache.json`, including restoring cached input paths, refreshing labels, and persisting the last-used files and folders.
@@ -136,7 +140,7 @@ Impact on existing files:
 
 ### Keyboard Shortcuts
 
-- `Ctrl+1` to `Ctrl+4`: switch between the main tabs.
+- `Ctrl+1` to `Ctrl+5`: switch between the main tabs.
 - `Ctrl+,`: open the Settings tab.
 - `Ctrl+=` or `Ctrl++`: increase font size.
 - `Ctrl+-`: decrease font size.

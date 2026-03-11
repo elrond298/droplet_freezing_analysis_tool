@@ -149,6 +149,43 @@ def compute_analysis_results(temperature_recordings: Any, brightness_timeseries:
     return freezing_temperatures, valid_freezing_points
 
 
+def extract_valid_freezing_temperatures(freezing_temperatures: dict[int, dict[str, Any]]) -> list[float]:
+    temperatures: list[float] = []
+    for _, data in sorted(freezing_temperatures.items()):
+        temperature = data.get('temperature')
+        if temperature is None:
+            continue
+        temperatures.append(float(temperature))
+    return temperatures
+
+
+def build_inp_curve(
+    freezing_values: list[float],
+    droplet_volume_ul: float,
+    dilution_factor: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    if droplet_volume_ul <= 0:
+        raise ValueError("Droplet volume must be greater than zero.")
+    if dilution_factor <= 0:
+        raise ValueError("Dilution factor must be greater than zero.")
+    if not freezing_values:
+        raise ValueError("At least one freezing temperature is required.")
+
+    temperatures = np.asarray(freezing_values, dtype=float)
+    total_droplets = temperatures.size
+    droplet_volume_ml = droplet_volume_ul / 1000.0
+    unique_temperatures = np.array(sorted(set(temperatures.tolist()), reverse=True), dtype=float)
+    counts = np.array([int(np.sum(temperatures == value)) for value in unique_temperatures], dtype=int)
+    cumulative_frozen = np.cumsum(counts)
+    frozen_fraction = cumulative_frozen / total_droplets
+
+    # Keep the last point finite for plotting when every droplet has frozen.
+    unfrozen_fraction = np.maximum(1.0 - frozen_fraction, 0.5 / total_droplets)
+    inp_concentration = -np.log(unfrozen_fraction) / droplet_volume_ml
+    inp_concentration *= dilution_factor
+    return unique_temperatures, inp_concentration
+
+
 def build_current_tube_series(temperature_recordings: Any, brightness_timeseries: Any, current_tube: int) -> tuple[Any, Any, Any]:
     # Align both sources on shared timestamps before extracting the selected tube's series.
     common_timestamps = np.intersect1d(

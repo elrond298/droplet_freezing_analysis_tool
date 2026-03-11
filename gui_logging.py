@@ -20,6 +20,7 @@ def get_log_widgets(window: InteractivePlot, tab_number: int) -> list[QTextEdit]
                 getattr(window, 'log_text_edit_prep', None),
                 getattr(window, 'log_text_edit', None),
                 getattr(window, 'log_text_edit2', None),
+                getattr(window, 'log_text_edit_inp', None),
             )
             if widget is not None
         ]
@@ -35,6 +36,8 @@ def get_log_widget(window: InteractivePlot, tab_number: int) -> QTextEdit | None
         return getattr(window, 'log_text_edit', None)
     if tab_number == window.LOG_TAB_ANALYZE:
         return getattr(window, 'log_text_edit2', None)
+    if tab_number == window.LOG_TAB_INP:
+        return getattr(window, 'log_text_edit_inp', None)
     return None
 
 

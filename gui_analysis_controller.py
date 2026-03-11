@@ -202,6 +202,7 @@ def refresh_current_tube_brightness_plot(window: InteractivePlot) -> None:
             window.ax2.set_xlim((0, window.temperature_recordings['temperature'].min()))
 
             refresh_current_tube_freezing_marker(window)
+            window.apply_figure_font_sizes(window.ax2)
 
             window.span = SpanSelector(
                 window.ax2,

@@ -6,6 +6,7 @@
 *tar
 __pycache__
 .ipynb_checkpoints
+exports/
 usage/*.bbl
 usage/*.dvi
 usage/*.tex

@@ -17,6 +17,8 @@ class SelectionState:
     auto_save_selected_inputs: bool = True
     auto_open_tube_detection_after_crop: bool = True
     show_hover_coordinates_in_status_bar: bool = True
+    inp_default_droplet_volume_ul: float = 10.0
+    inp_default_dilution_factor: float = 1.0
 
 
 @dataclass
@@ -49,3 +51,8 @@ class AnalysisState:
     current_tube_temperature: Any = None
     current_tube_brightness: Any = None
     current_tube_timestamps: Any = None
+
+
+@dataclass
+class InpState:
+    datasets: list[dict[str, Any]] = field(default_factory=list)

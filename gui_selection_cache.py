@@ -75,6 +75,8 @@ def save_selection_cache(window: InteractivePlot) -> None:
         'auto_save_selected_inputs': window.auto_save_selected_inputs,
         'auto_open_tube_detection_after_crop': window.auto_open_tube_detection_after_crop,
         'show_hover_coordinates_in_status_bar': window.show_hover_coordinates_in_status_bar,
+        'inp_default_droplet_volume_ul': window.inp_default_droplet_volume_ul,
+        'inp_default_dilution_factor': window.inp_default_dilution_factor,
     }
     temp_cache_path = f"{window.selection_cache_path}.tmp"
 
@@ -128,6 +130,14 @@ def restore_cached_selections(window: InteractivePlot) -> None:
     show_hover_coordinates_in_status_bar = cached_data.get('show_hover_coordinates_in_status_bar')
     if isinstance(show_hover_coordinates_in_status_bar, bool):
         window.show_hover_coordinates_in_status_bar = show_hover_coordinates_in_status_bar
+
+    inp_default_droplet_volume_ul = cached_data.get('inp_default_droplet_volume_ul')
+    if isinstance(inp_default_droplet_volume_ul, (int, float)) and inp_default_droplet_volume_ul > 0:
+        window.inp_default_droplet_volume_ul = float(inp_default_droplet_volume_ul)
+
+    inp_default_dilution_factor = cached_data.get('inp_default_dilution_factor')
+    if isinstance(inp_default_dilution_factor, (int, float)) and inp_default_dilution_factor > 0:
+        window.inp_default_dilution_factor = float(inp_default_dilution_factor)
 
     ui_font_size = cached_data.get('ui_font_size')
     if isinstance(ui_font_size, int):
