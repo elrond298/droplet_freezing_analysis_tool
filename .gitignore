@@ -10,7 +10,7 @@ exports/
 usage/*.bbl
 usage/*.dvi
 usage/*.tex
-usage/*.pdf
+# usage/*.pdf
 .auctex-auto
 freezing_temperatures*
 inner_circles*
