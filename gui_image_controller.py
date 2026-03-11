@@ -106,7 +106,8 @@ def apply_selected_crop_to_tube_detection(window):
                 window.LOG_LEVEL_INFO,
             )
 
-        window.tab_widget.setCurrentWidget(window.tab1)
+        if window.auto_open_tube_detection_after_crop:
+            window.tab_widget.setCurrentWidget(window.tab1)
         window.run_tube_detection_and_render_plot()
         window.append_log_message(
             "Crop and rotation applied to tube detection",

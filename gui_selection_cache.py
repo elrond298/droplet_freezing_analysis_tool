@@ -42,12 +42,33 @@ def load_selection_cache(window):
 
 
 def save_selection_cache(window):
+    existing_cached_data = load_selection_cache(window)
+
+    sample_image_path = window.sample_image_path
+    image_directory = window.image_directory
+    temperature_recording_file = window.temperature_recording_file
+    tube_location_file = window.tube_location_file
+
+    if not window.auto_save_selected_inputs:
+        sample_image_path = existing_cached_data.get('sample_image_path')
+        image_directory = existing_cached_data.get('image_directory')
+        temperature_recording_file = existing_cached_data.get('temperature_recording_file')
+        tube_location_file = existing_cached_data.get('tube_location_file')
+
     cached_data = {
-        'sample_image_path': window.sample_image_path,
-        'image_directory': window.image_directory,
-        'temperature_recording_file': window.temperature_recording_file,
-        'tube_location_file': window.tube_location_file,
+        'sample_image_path': sample_image_path,
+        'image_directory': image_directory,
+        'temperature_recording_file': temperature_recording_file,
+        'tube_location_file': tube_location_file,
         'ui_font_size': window.ui_font_size,
+        'detection_default_tubes_size': list(window.detection_default_tubes_size),
+        'detection_default_rotation': window.detection_default_rotation,
+        'detection_default_min_area': window.detection_default_min_area,
+        'detection_default_circularity': window.detection_default_circularity,
+        'restore_last_selected_inputs': window.restore_last_selected_inputs,
+        'auto_save_selected_inputs': window.auto_save_selected_inputs,
+        'auto_open_tube_detection_after_crop': window.auto_open_tube_detection_after_crop,
+        'show_hover_coordinates_in_status_bar': window.show_hover_coordinates_in_status_bar,
     }
     temp_cache_path = f"{window.selection_cache_path}.tmp"
 
@@ -66,25 +87,65 @@ def save_selection_cache(window):
 def restore_cached_selections(window):
     cached_data = load_selection_cache(window)
 
-    sample_image_path = cached_data.get('sample_image_path')
-    if isinstance(sample_image_path, str) and os.path.isfile(sample_image_path):
-        window.sample_image_path = sample_image_path
+    detection_default_tubes_size = cached_data.get('detection_default_tubes_size')
+    if (
+        isinstance(detection_default_tubes_size, (list, tuple))
+        and len(detection_default_tubes_size) == 2
+        and all(isinstance(value, int) and value > 0 for value in detection_default_tubes_size)
+    ):
+        window.detection_default_tubes_size = tuple(detection_default_tubes_size)
 
-    image_directory = cached_data.get('image_directory')
-    if isinstance(image_directory, str) and os.path.isdir(image_directory):
-        window.image_directory = image_directory
+    detection_default_rotation = cached_data.get('detection_default_rotation')
+    if isinstance(detection_default_rotation, str) and detection_default_rotation.strip():
+        window.detection_default_rotation = detection_default_rotation.strip()
 
-    temperature_recording_file = cached_data.get('temperature_recording_file')
-    if isinstance(temperature_recording_file, str) and os.path.isfile(temperature_recording_file):
-        window.temperature_recording_file = temperature_recording_file
+    detection_default_min_area = cached_data.get('detection_default_min_area')
+    if isinstance(detection_default_min_area, int):
+        window.detection_default_min_area = detection_default_min_area
 
-    tube_location_file = cached_data.get('tube_location_file')
-    if isinstance(tube_location_file, str) and os.path.isfile(tube_location_file):
-        window.tube_location_file = tube_location_file
+    detection_default_circularity = cached_data.get('detection_default_circularity')
+    if isinstance(detection_default_circularity, int):
+        window.detection_default_circularity = detection_default_circularity
+
+    restore_last_selected_inputs = cached_data.get('restore_last_selected_inputs')
+    if isinstance(restore_last_selected_inputs, bool):
+        window.restore_last_selected_inputs = restore_last_selected_inputs
+
+    auto_save_selected_inputs = cached_data.get('auto_save_selected_inputs')
+    if isinstance(auto_save_selected_inputs, bool):
+        window.auto_save_selected_inputs = auto_save_selected_inputs
+
+    auto_open_tube_detection_after_crop = cached_data.get('auto_open_tube_detection_after_crop')
+    if isinstance(auto_open_tube_detection_after_crop, bool):
+        window.auto_open_tube_detection_after_crop = auto_open_tube_detection_after_crop
+
+    show_hover_coordinates_in_status_bar = cached_data.get('show_hover_coordinates_in_status_bar')
+    if isinstance(show_hover_coordinates_in_status_bar, bool):
+        window.show_hover_coordinates_in_status_bar = show_hover_coordinates_in_status_bar
 
     ui_font_size = cached_data.get('ui_font_size')
     if isinstance(ui_font_size, int):
         window.set_ui_font_size(ui_font_size, persist=False)
+
+    window.refresh_settings_controls()
+    window.apply_detection_defaults_to_locate_controls(schedule=False)
+
+    if window.restore_last_selected_inputs:
+        sample_image_path = cached_data.get('sample_image_path')
+        if isinstance(sample_image_path, str) and os.path.isfile(sample_image_path):
+            window.sample_image_path = sample_image_path
+
+        image_directory = cached_data.get('image_directory')
+        if isinstance(image_directory, str) and os.path.isdir(image_directory):
+            window.image_directory = image_directory
+
+        temperature_recording_file = cached_data.get('temperature_recording_file')
+        if isinstance(temperature_recording_file, str) and os.path.isfile(temperature_recording_file):
+            window.temperature_recording_file = temperature_recording_file
+
+        tube_location_file = cached_data.get('tube_location_file')
+        if isinstance(tube_location_file, str) and os.path.isfile(tube_location_file):
+            window.tube_location_file = tube_location_file
 
     refresh_image_path_labels(window)
     refresh_analysis_input_labels(window)

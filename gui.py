@@ -2,7 +2,7 @@ import sys
 import os
 import html
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
-                             QPushButton, QLineEdit, QSlider, QLabel, QSpinBox, 
+                             QPushButton, QLineEdit, QSlider, QLabel, QSpinBox, QCheckBox,
                              QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox, QFormLayout,
                              QSizePolicy, QScrollArea, QProgressBar)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
@@ -200,6 +200,70 @@ class InteractivePlot(QMainWindow):
         self.selection_state.tube_location_file = value
 
     @property
+    def detection_default_tubes_size(self):
+        return self.selection_state.detection_default_tubes_size
+
+    @detection_default_tubes_size.setter
+    def detection_default_tubes_size(self, value):
+        self.selection_state.detection_default_tubes_size = value
+
+    @property
+    def detection_default_rotation(self):
+        return self.selection_state.detection_default_rotation
+
+    @detection_default_rotation.setter
+    def detection_default_rotation(self, value):
+        self.selection_state.detection_default_rotation = value
+
+    @property
+    def detection_default_min_area(self):
+        return self.selection_state.detection_default_min_area
+
+    @detection_default_min_area.setter
+    def detection_default_min_area(self, value):
+        self.selection_state.detection_default_min_area = value
+
+    @property
+    def detection_default_circularity(self):
+        return self.selection_state.detection_default_circularity
+
+    @detection_default_circularity.setter
+    def detection_default_circularity(self, value):
+        self.selection_state.detection_default_circularity = value
+
+    @property
+    def restore_last_selected_inputs(self):
+        return self.selection_state.restore_last_selected_inputs
+
+    @restore_last_selected_inputs.setter
+    def restore_last_selected_inputs(self, value):
+        self.selection_state.restore_last_selected_inputs = value
+
+    @property
+    def auto_save_selected_inputs(self):
+        return self.selection_state.auto_save_selected_inputs
+
+    @auto_save_selected_inputs.setter
+    def auto_save_selected_inputs(self, value):
+        self.selection_state.auto_save_selected_inputs = value
+
+    @property
+    def auto_open_tube_detection_after_crop(self):
+        return self.selection_state.auto_open_tube_detection_after_crop
+
+    @auto_open_tube_detection_after_crop.setter
+    def auto_open_tube_detection_after_crop(self, value):
+        self.selection_state.auto_open_tube_detection_after_crop = value
+
+    @property
+    def show_hover_coordinates_in_status_bar(self):
+        return self.selection_state.show_hover_coordinates_in_status_bar
+
+    @show_hover_coordinates_in_status_bar.setter
+    def show_hover_coordinates_in_status_bar(self, value):
+        self.selection_state.show_hover_coordinates_in_status_bar = value
+
+    @property
     def img(self):
         return self.image_prep_state.img
 
@@ -366,6 +430,221 @@ class InteractivePlot(QMainWindow):
             if point_size > 0:
                 return point_size
         return self.DEFAULT_FONT_SIZE
+
+    def format_tubes_size(self, tubes_size):
+        return f"{tubes_size[0]}, {tubes_size[1]}"
+
+    def parse_tubes_size_text(self, text):
+        rows_text, columns_text = [part.strip() for part in text.split(',')]
+        rows = int(rows_text)
+        columns = int(columns_text)
+        if rows <= 0 or columns <= 0:
+            raise ValueError()
+        return rows, columns
+
+    def refresh_settings_controls(self):
+        if hasattr(self, 'settings_tubes_size_input'):
+            self.settings_tubes_size_input.blockSignals(True)
+            self.settings_tubes_size_input.setText(self.format_tubes_size(self.detection_default_tubes_size))
+            self.settings_tubes_size_input.blockSignals(False)
+
+        if hasattr(self, 'settings_rotation_input'):
+            self.settings_rotation_input.blockSignals(True)
+            self.settings_rotation_input.setText(self.detection_default_rotation)
+            self.settings_rotation_input.blockSignals(False)
+
+        if hasattr(self, 'settings_min_area_spinbox'):
+            self.settings_min_area_spinbox.blockSignals(True)
+            self.settings_min_area_spinbox.setValue(self.detection_default_min_area)
+            self.settings_min_area_spinbox.blockSignals(False)
+
+        if hasattr(self, 'settings_circularity_spinbox'):
+            self.settings_circularity_spinbox.blockSignals(True)
+            self.settings_circularity_spinbox.setValue(self.detection_default_circularity)
+            self.settings_circularity_spinbox.blockSignals(False)
+
+        if hasattr(self, 'restore_last_selected_inputs_checkbox'):
+            self.restore_last_selected_inputs_checkbox.blockSignals(True)
+            self.restore_last_selected_inputs_checkbox.setChecked(self.restore_last_selected_inputs)
+            self.restore_last_selected_inputs_checkbox.blockSignals(False)
+
+        if hasattr(self, 'auto_save_selected_inputs_checkbox'):
+            self.auto_save_selected_inputs_checkbox.blockSignals(True)
+            self.auto_save_selected_inputs_checkbox.setChecked(self.auto_save_selected_inputs)
+            self.auto_save_selected_inputs_checkbox.blockSignals(False)
+
+        if hasattr(self, 'auto_open_tube_detection_after_crop_checkbox'):
+            self.auto_open_tube_detection_after_crop_checkbox.blockSignals(True)
+            self.auto_open_tube_detection_after_crop_checkbox.setChecked(self.auto_open_tube_detection_after_crop)
+            self.auto_open_tube_detection_after_crop_checkbox.blockSignals(False)
+
+        if hasattr(self, 'show_hover_coordinates_checkbox'):
+            self.show_hover_coordinates_checkbox.blockSignals(True)
+            self.show_hover_coordinates_checkbox.setChecked(self.show_hover_coordinates_in_status_bar)
+            self.show_hover_coordinates_checkbox.blockSignals(False)
+
+    def apply_detection_defaults_to_locate_controls(self, schedule=False):
+        self.tubes_size = self.detection_default_tubes_size
+
+        if hasattr(self, 'tubes_size_input'):
+            self.tubes_size_input.blockSignals(True)
+            self.tubes_size_input.setText(self.format_tubes_size(self.detection_default_tubes_size))
+            self.tubes_size_input.blockSignals(False)
+
+        if hasattr(self, 'rotation_input'):
+            self.rotation_input.blockSignals(True)
+            self.rotation_input.setText(self.detection_default_rotation)
+            self.rotation_input.blockSignals(False)
+
+        if hasattr(self, 'min_area_slider'):
+            self.min_area_slider.blockSignals(True)
+            self.min_area_slider.setValue(self.detection_default_min_area)
+            self.min_area_slider.blockSignals(False)
+        if hasattr(self, 'min_area_label'):
+            self.min_area_label.setText(f"Min Area: {self.detection_default_min_area}")
+
+        if hasattr(self, 'circularity_slider'):
+            self.circularity_slider.blockSignals(True)
+            self.circularity_slider.setValue(self.detection_default_circularity)
+            self.circularity_slider.blockSignals(False)
+        if hasattr(self, 'circularity_label'):
+            self.circularity_label.setText(f"Circularity: {self.detection_default_circularity / 100:.2f}")
+
+        if schedule:
+            self.schedule_update()
+
+    def create_detection_defaults_group(self):
+        detection_group = QGroupBox("Detection Defaults")
+        layout = QFormLayout(detection_group)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(10)
+
+        self.settings_tubes_size_input = QLineEdit(self.format_tubes_size(self.detection_default_tubes_size))
+        self.settings_tubes_size_input.setPlaceholderText("Example: 10, 8")
+        self.settings_tubes_size_input.editingFinished.connect(self.update_detection_default_tubes_size)
+        layout.addRow("Default tube grid (rows, columns):", self.settings_tubes_size_input)
+
+        self.settings_rotation_input = QLineEdit(self.detection_default_rotation)
+        self.settings_rotation_input.setPlaceholderText("auto or degrees, e.g. -1.5")
+        self.settings_rotation_input.editingFinished.connect(self.update_detection_default_rotation)
+        layout.addRow("Default grid rotation:", self.settings_rotation_input)
+
+        self.settings_min_area_spinbox = QSpinBox()
+        self.settings_min_area_spinbox.setRange(10, 1500)
+        self.settings_min_area_spinbox.setSingleStep(10)
+        self.settings_min_area_spinbox.setValue(self.detection_default_min_area)
+        self.settings_min_area_spinbox.valueChanged.connect(self.update_detection_default_min_area)
+        layout.addRow("Default minimum area:", self.settings_min_area_spinbox)
+
+        self.settings_circularity_spinbox = QSpinBox()
+        self.settings_circularity_spinbox.setRange(10, 100)
+        self.settings_circularity_spinbox.setSingleStep(5)
+        self.settings_circularity_spinbox.setSuffix(" %")
+        self.settings_circularity_spinbox.setValue(self.detection_default_circularity)
+        self.settings_circularity_spinbox.valueChanged.connect(self.update_detection_default_circularity)
+        layout.addRow("Default circularity threshold:", self.settings_circularity_spinbox)
+
+        return detection_group
+
+    def create_session_behavior_group(self):
+        session_group = QGroupBox("Session And File Behavior")
+        layout = QVBoxLayout(session_group)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
+
+        self.restore_last_selected_inputs_checkbox = QCheckBox("Restore the last selected input files and folders on startup")
+        self.restore_last_selected_inputs_checkbox.setChecked(self.restore_last_selected_inputs)
+        self.restore_last_selected_inputs_checkbox.toggled.connect(self.update_restore_last_selected_inputs)
+        layout.addWidget(self.restore_last_selected_inputs_checkbox)
+
+        self.auto_save_selected_inputs_checkbox = QCheckBox("Auto-save selected input files and folders as you change them")
+        self.auto_save_selected_inputs_checkbox.setChecked(self.auto_save_selected_inputs)
+        self.auto_save_selected_inputs_checkbox.toggled.connect(self.update_auto_save_selected_inputs)
+        layout.addWidget(self.auto_save_selected_inputs_checkbox)
+
+        self.auto_open_tube_detection_after_crop_checkbox = QCheckBox("Open the Locate Tubes tab automatically after applying a crop")
+        self.auto_open_tube_detection_after_crop_checkbox.setChecked(self.auto_open_tube_detection_after_crop)
+        self.auto_open_tube_detection_after_crop_checkbox.toggled.connect(self.update_auto_open_tube_detection_after_crop)
+        layout.addWidget(self.auto_open_tube_detection_after_crop_checkbox)
+
+        return session_group
+
+    def create_plot_behavior_group(self):
+        plot_group = QGroupBox("Plot And Status Bar")
+        layout = QVBoxLayout(plot_group)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
+
+        self.show_hover_coordinates_checkbox = QCheckBox("Show matplotlib hover coordinates in the status bar")
+        self.show_hover_coordinates_checkbox.setChecked(self.show_hover_coordinates_in_status_bar)
+        self.show_hover_coordinates_checkbox.toggled.connect(self.update_show_hover_coordinates_in_status_bar)
+        layout.addWidget(self.show_hover_coordinates_checkbox)
+
+        hint_label = QLabel("Hover readouts from the embedded plots appear in the main window status bar instead of the matplotlib toolbar.")
+        hint_label.setObjectName("hintLabel")
+        hint_label.setWordWrap(True)
+        layout.addWidget(hint_label)
+
+        return plot_group
+
+    def update_detection_default_tubes_size(self):
+        text = self.settings_tubes_size_input.text().strip()
+        try:
+            self.detection_default_tubes_size = self.parse_tubes_size_text(text)
+            self.apply_detection_defaults_to_locate_controls(schedule=True)
+            self.save_selection_cache()
+            self.append_log_message(
+                f"Default tube grid updated to {self.detection_default_tubes_size}",
+                self.LOG_TAB_ALL,
+                self.LOG_LEVEL_INFO,
+            )
+        except ValueError:
+            self.refresh_settings_controls()
+            self.append_log_message(
+                "Invalid default tube grid. Please enter two positive integers separated by a comma.",
+                self.LOG_TAB_ALL,
+                self.LOG_LEVEL_WARNING,
+            )
+
+    def update_detection_default_rotation(self):
+        rotation = self.settings_rotation_input.text().strip() or 'auto'
+        self.detection_default_rotation = rotation
+        self.apply_detection_defaults_to_locate_controls(schedule=True)
+        self.refresh_settings_controls()
+        self.save_selection_cache()
+        self.append_log_message(
+            f"Default grid rotation updated to {rotation}",
+            self.LOG_TAB_ALL,
+            self.LOG_LEVEL_INFO,
+        )
+
+    def update_detection_default_min_area(self, value):
+        self.detection_default_min_area = int(value)
+        self.apply_detection_defaults_to_locate_controls(schedule=True)
+        self.save_selection_cache()
+
+    def update_detection_default_circularity(self, value):
+        self.detection_default_circularity = int(value)
+        self.apply_detection_defaults_to_locate_controls(schedule=True)
+        self.save_selection_cache()
+
+    def update_restore_last_selected_inputs(self, checked):
+        self.restore_last_selected_inputs = bool(checked)
+        self.save_selection_cache()
+
+    def update_auto_save_selected_inputs(self, checked):
+        self.auto_save_selected_inputs = bool(checked)
+        self.save_selection_cache()
+
+    def update_auto_open_tube_detection_after_crop(self, checked):
+        self.auto_open_tube_detection_after_crop = bool(checked)
+        self.save_selection_cache()
+
+    def update_show_hover_coordinates_in_status_bar(self, checked):
+        self.show_hover_coordinates_in_status_bar = bool(checked)
+        if not self.show_hover_coordinates_in_status_bar:
+            self.statusBar().clearMessage()
+        self.save_selection_cache()
 
     def create_display_controls(self):
         display_group = QGroupBox("Display")
@@ -818,7 +1097,8 @@ class InteractivePlot(QMainWindow):
         if file:
             self.sample_image_path = file
             self.refresh_image_path_labels()
-            self.save_selection_cache()
+            if self.auto_save_selected_inputs:
+                self.save_selection_cache()
             self.append_log_message(f"Selected image: {file}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
             self.load_selected_image_into_preparation_view()
 
@@ -827,7 +1107,8 @@ class InteractivePlot(QMainWindow):
         if folder:
             self.image_directory = folder
             self.refresh_analysis_input_labels()
-            self.save_selection_cache()
+            if self.auto_save_selected_inputs:
+                self.save_selection_cache()
             self.append_log_message(f"Image directory selected: {folder}", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
 
     def select_temperature_recording(self):
@@ -835,7 +1116,8 @@ class InteractivePlot(QMainWindow):
         if file:
             self.temperature_recording_file = file
             self.refresh_analysis_input_labels()
-            self.save_selection_cache()
+            if self.auto_save_selected_inputs:
+                self.save_selection_cache()
             self.append_log_message(f"Temperature recording selected: {file}", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
 
     def select_tube_locations(self):
@@ -843,7 +1125,8 @@ class InteractivePlot(QMainWindow):
         if file:
             self.tube_location_file = file
             self.refresh_analysis_input_labels()
-            self.save_selection_cache()
+            if self.auto_save_selected_inputs:
+                self.save_selection_cache()
             self.append_log_message(f"Tube locations selected: {file}", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
 
     def run_tube_detection_and_render_plot(self):
@@ -877,7 +1160,7 @@ class InteractivePlot(QMainWindow):
 
     def update_tubes_size(self, text):
         try:
-            rows, columns = map(int, text.split(','))
+            rows, columns = self.parse_tubes_size_text(text)
             self.tubes_size = (rows, columns)
             self.schedule_update()
             self.append_log_message(

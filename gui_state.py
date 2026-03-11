@@ -9,6 +9,14 @@ class SelectionState:
     temperature_recording_file: str | None = None
     tube_location_file: str | None = None
     ui_font_size: int = 10
+    detection_default_tubes_size: tuple[int, int] = (10, 8)
+    detection_default_rotation: str = "auto"
+    detection_default_min_area: int = 800
+    detection_default_circularity: int = 20
+    restore_last_selected_inputs: bool = True
+    auto_save_selected_inputs: bool = True
+    auto_open_tube_detection_after_crop: bool = True
+    show_hover_coordinates_in_status_bar: bool = True
 
 
 @dataclass

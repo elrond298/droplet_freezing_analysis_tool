@@ -33,7 +33,10 @@ class FullMessageNavigationToolbar(NavigationToolbar):
 
         window = self.window()
         if window is not None and hasattr(window, 'statusBar'):
-            window.statusBar().showMessage(full_message)
+            if getattr(window, 'show_hover_coordinates_in_status_bar', True):
+                window.statusBar().showMessage(full_message)
+            else:
+                window.statusBar().clearMessage()
 
 
 def create_log_group(window, title, attribute_name):
@@ -376,10 +379,13 @@ def build_settings_tab(window):
     settings_layout.setSpacing(12)
 
     settings_layout.addWidget(window.create_tab_header(
-        "Adjust display and shortcuts",
-        "Keep the analysis tabs uncluttered while still making interface size and keyboard navigation easy to access."
+        "Adjust defaults, display, and shortcuts",
+        "Set reusable detection defaults, choose how selections are remembered, and control display behavior without crowding the workflow tabs."
     ))
 
+    settings_layout.addWidget(window.create_detection_defaults_group())
+    settings_layout.addWidget(window.create_session_behavior_group())
+    settings_layout.addWidget(window.create_plot_behavior_group())
     settings_layout.addWidget(window.create_display_controls())
     settings_layout.addWidget(window.create_shortcuts_summary_group())
     settings_layout.addStretch(1)
