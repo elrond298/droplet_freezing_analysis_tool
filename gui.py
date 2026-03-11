@@ -537,8 +537,6 @@ class InteractivePlot(QMainWindow):
             self.settings_inp_dilution_spinbox.setValue(self.inp_default_dilution_factor)
             self.settings_inp_dilution_spinbox.blockSignals(False)
 
-        self.apply_inp_defaults_to_controls()
-
     def apply_detection_defaults_to_locate_controls(self, schedule: bool = False) -> None:
         self.tubes_size = self.detection_default_tubes_size
 
@@ -729,26 +727,18 @@ class InteractivePlot(QMainWindow):
 
     def update_inp_default_droplet_volume_ul(self, value: float) -> None:
         self.inp_default_droplet_volume_ul = float(value)
-        self.apply_inp_defaults_to_controls()
         self.save_selection_cache()
 
     def update_inp_default_dilution_factor(self, value: float) -> None:
         self.inp_default_dilution_factor = float(value)
-        self.apply_inp_defaults_to_controls()
         self.save_selection_cache()
 
-    def apply_inp_defaults_to_controls(self) -> None:
-        if hasattr(self, 'inp_droplet_volume_input'):
-            self.inp_droplet_volume_input.blockSignals(True)
-            self.inp_droplet_volume_input.setText(f"{self.inp_default_droplet_volume_ul:g}")
-            self.inp_droplet_volume_input.blockSignals(False)
-
-        if hasattr(self, 'inp_dilution_factor_input'):
-            self.inp_dilution_factor_input.blockSignals(True)
-            self.inp_dilution_factor_input.setText(f"{self.inp_default_dilution_factor:g}")
-            self.inp_dilution_factor_input.blockSignals(False)
-
-    def prompt_for_inp_dataset_parameters(self, label: str = "") -> tuple[str, float, float] | None:
+    def prompt_for_inp_dataset_parameters(
+        self,
+        label: str = "",
+        initial_droplet_volume_ul: float | None = None,
+        initial_dilution_factor: float | None = None,
+    ) -> tuple[str, float, float] | None:
         dialog = QDialog(self)
         dialog.setWindowTitle("Add Results To INP Plot")
 
@@ -764,14 +754,14 @@ class InteractivePlot(QMainWindow):
         volume_spinbox.setDecimals(3)
         volume_spinbox.setSingleStep(1.0)
         volume_spinbox.setSuffix(" uL")
-        volume_spinbox.setValue(self.inp_default_droplet_volume_ul)
+        volume_spinbox.setValue(self.inp_default_droplet_volume_ul if initial_droplet_volume_ul is None else initial_droplet_volume_ul)
         form_layout.addRow("Droplet volume:", volume_spinbox)
 
         dilution_spinbox = QDoubleSpinBox()
         dilution_spinbox.setRange(0.000001, 1000000.0)
         dilution_spinbox.setDecimals(6)
         dilution_spinbox.setSingleStep(0.1)
-        dilution_spinbox.setValue(self.inp_default_dilution_factor)
+        dilution_spinbox.setValue(self.inp_default_dilution_factor if initial_dilution_factor is None else initial_dilution_factor)
         form_layout.addRow("Dilution factor:", dilution_spinbox)
 
         layout.addLayout(form_layout)
@@ -1515,24 +1505,56 @@ class InteractivePlot(QMainWindow):
     def add_inp_dataset_from_files(self) -> None:
         inp_add_inp_dataset_from_files(self)
 
+    def prompt_and_add_inp_dataset_from_files(self) -> None:
+        file_paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select Freezing Temperatures",
+            ".",
+            "Text Files (*.txt)",
+        )
+        if not file_paths:
+            self.append_log_message("No freezing-temperature file selected.", self.LOG_TAB_INP, self.LOG_LEVEL_WARNING)
+            return
+
+        initial_label = os.path.basename(file_paths[0]) if len(file_paths) == 1 else ""
+        parameters = self.prompt_for_inp_dataset_parameters(label=initial_label)
+        if parameters is None:
+            return
+
+        label, droplet_volume_ul, dilution_factor = parameters
+        inp_add_inp_dataset_from_files(
+            self,
+            label=label,
+            droplet_volume_ul=droplet_volume_ul,
+            dilution_factor=dilution_factor,
+            file_paths=file_paths,
+        )
+
     def add_selected_inp_preset(self) -> None:
         inp_add_selected_inp_preset(self)
+
+    def prompt_and_add_selected_inp_preset(self) -> None:
+        parameters = self.prompt_for_inp_dataset_parameters(label=self.inp_preset_combo.currentText())
+        if parameters is None:
+            return
+
+        label, droplet_volume_ul, dilution_factor = parameters
+        inp_add_selected_inp_preset(
+            self,
+            label=label,
+            droplet_volume_ul=droplet_volume_ul,
+            dilution_factor=dilution_factor,
+        )
 
     def add_current_analysis_to_inp(self) -> None:
         inp_add_current_analysis_to_inp(self)
 
     def prompt_and_add_current_analysis_to_inp(self) -> None:
-        parameters = self.prompt_for_inp_dataset_parameters()
+        parameters = self.prompt_for_inp_dataset_parameters(label="Analyze Freezing")
         if parameters is None:
             return
 
         label, droplet_volume_ul, dilution_factor = parameters
-        if hasattr(self, 'inp_dataset_label_input'):
-            self.inp_dataset_label_input.setText(label)
-        if hasattr(self, 'inp_droplet_volume_input'):
-            self.inp_droplet_volume_input.setText(f"{droplet_volume_ul:g}")
-        if hasattr(self, 'inp_dilution_factor_input'):
-            self.inp_dilution_factor_input.setText(f"{dilution_factor:g}")
 
         inp_add_current_analysis_to_inp(
             self,
@@ -1540,6 +1562,21 @@ class InteractivePlot(QMainWindow):
             droplet_volume_ul=droplet_volume_ul,
             dilution_factor=dilution_factor,
             auto_export=True,
+        )
+
+    def prompt_and_add_current_analysis_to_inp_from_tab4(self) -> None:
+        parameters = self.prompt_for_inp_dataset_parameters(label="Analyze Freezing")
+        if parameters is None:
+            return
+
+        label, droplet_volume_ul, dilution_factor = parameters
+
+        inp_add_current_analysis_to_inp(
+            self,
+            label=label,
+            droplet_volume_ul=droplet_volume_ul,
+            dilution_factor=dilution_factor,
+            auto_export=False,
         )
 
     def remove_selected_inp_dataset(self) -> None:

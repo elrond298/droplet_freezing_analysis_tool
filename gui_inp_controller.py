@@ -22,39 +22,35 @@ if TYPE_CHECKING:
 AUTO_EXPORT_DIRECTORY = os.path.join("exports", "inp_freezing_temperatures")
 
 
-def add_inp_dataset_from_files(window: InteractivePlot) -> None:
-    file_paths, _ = QFileDialog.getOpenFileNames(
-        window,
-        "Select Freezing Temperatures",
-        ".",
-        "Text Files (*.txt)",
-    )
+def add_inp_dataset_from_files(
+    window: InteractivePlot,
+    label: str | None = None,
+    droplet_volume_ul: float | None = None,
+    dilution_factor: float | None = None,
+    file_paths: list[str] | None = None,
+) -> None:
+    if file_paths is None:
+        file_paths, _ = QFileDialog.getOpenFileNames(
+            window,
+            "Select Freezing Temperatures",
+            ".",
+            "Text Files (*.txt)",
+        )
     if not file_paths:
         window.append_log_message("No freezing-temperature file selected.", window.LOG_TAB_INP, window.LOG_LEVEL_WARNING)
         return
 
-    settings = _parse_inp_settings(window)
-    if settings is None:
-        return
+    if droplet_volume_ul is None or dilution_factor is None:
+        custom_label = "" if label is None else label.strip()
+        droplet_volume_ul = window.inp_default_droplet_volume_ul
+        dilution_factor = window.inp_default_dilution_factor
+    else:
+        custom_label = "" if label is None else label.strip()
 
-    custom_label, droplet_volume_ul, dilution_factor = settings
     added_count = 0
     for file_path in file_paths:
-        freezing_temperatures, errors = deserialize_freezing_temperatures(file_path)
-        for line, error in errors:
-            window.append_log_message(
-                f"Skipped malformed line in {os.path.basename(file_path)}: {line.strip()} ({error})",
-                window.LOG_TAB_INP,
-                window.LOG_LEVEL_WARNING,
-            )
-
-        temperatures = extract_valid_freezing_temperatures(freezing_temperatures)
+        temperatures = _load_freezing_temperatures_from_path(window, file_path)
         if not temperatures:
-            window.append_log_message(
-                f"No valid freezing temperatures found in {file_path}",
-                window.LOG_TAB_INP,
-                window.LOG_LEVEL_WARNING,
-            )
             continue
 
         base_label = custom_label if custom_label and len(file_paths) == 1 else os.path.basename(file_path)
@@ -71,7 +67,6 @@ def add_inp_dataset_from_files(window: InteractivePlot) -> None:
     if added_count == 0:
         return
 
-    window.inp_dataset_label_input.clear()
     refresh_inp_plot(window)
     window.append_log_message(
         f"Added {added_count} freezing-temperature dataset(s) to the INP plot.",
@@ -80,28 +75,25 @@ def add_inp_dataset_from_files(window: InteractivePlot) -> None:
     )
 
 
-def add_selected_inp_preset(window: InteractivePlot) -> None:
+def add_selected_inp_preset(
+    window: InteractivePlot,
+    label: str | None = None,
+    droplet_volume_ul: float | None = None,
+    dilution_factor: float | None = None,
+) -> None:
     preset_path = window.inp_preset_combo.currentData()
     if not isinstance(preset_path, str) or not os.path.isfile(preset_path):
         window.append_log_message("The selected preset file is not available.", window.LOG_TAB_INP, window.LOG_LEVEL_ERROR)
         return
 
-    settings = _parse_inp_settings(window)
-    if settings is None:
-        return
+    custom_label = "" if label is None else label.strip()
+    if droplet_volume_ul is None:
+        droplet_volume_ul = window.inp_default_droplet_volume_ul
+    if dilution_factor is None:
+        dilution_factor = window.inp_default_dilution_factor
 
-    custom_label, droplet_volume_ul, dilution_factor = settings
-    freezing_temperatures, errors = deserialize_freezing_temperatures(preset_path)
-    for line, error in errors:
-        window.append_log_message(
-            f"Skipped malformed preset line: {line.strip()} ({error})",
-            window.LOG_TAB_INP,
-            window.LOG_LEVEL_WARNING,
-        )
-
-    temperatures = extract_valid_freezing_temperatures(freezing_temperatures)
+    temperatures = _load_freezing_temperatures_from_path(window, preset_path, source_label="preset")
     if not temperatures:
-        window.append_log_message("The selected preset does not contain valid freezing temperatures.", window.LOG_TAB_INP, window.LOG_LEVEL_WARNING)
         return
 
     _append_inp_dataset(
@@ -112,7 +104,6 @@ def add_selected_inp_preset(window: InteractivePlot) -> None:
         dilution_factor=dilution_factor,
         source=preset_path,
     )
-    window.inp_dataset_label_input.clear()
     refresh_inp_plot(window)
     window.append_log_message(
         f"Added preset dataset: {window.inp_preset_combo.currentText()}",
@@ -138,29 +129,30 @@ def add_current_analysis_to_inp(
         return
 
     if droplet_volume_ul is None or dilution_factor is None:
-        settings = _parse_inp_settings(window)
-        if settings is None:
-            return
-        custom_label, droplet_volume_ul, dilution_factor = settings
+        custom_label = "" if label is None else label.strip()
+        if droplet_volume_ul is None:
+            droplet_volume_ul = window.inp_default_droplet_volume_ul
+        if dilution_factor is None:
+            dilution_factor = window.inp_default_dilution_factor
     else:
         custom_label = "" if label is None else label.strip()
 
+    display_label = custom_label or "Analyze Freezing"
     source_label = "Analyze Freezing tab"
     if auto_export:
-        export_path = _auto_export_current_analysis_freezing_temperatures(window, custom_label)
+        export_path = _auto_export_current_analysis_freezing_temperatures(window, display_label)
         if export_path is None:
             return
         source_label = export_path
 
     _append_inp_dataset(
         window,
-        label=custom_label or source_label,
+        label=display_label,
         freezing_values=temperatures,
         droplet_volume_ul=droplet_volume_ul,
         dilution_factor=dilution_factor,
         source=source_label,
     )
-    window.inp_dataset_label_input.clear()
     refresh_inp_plot(window)
     window.tab_widget.setCurrentIndex(3)
     window.append_log_message(
@@ -265,29 +257,30 @@ def _append_inp_dataset(
     window.inp_datasets.append(dataset)
 
 
-def _parse_inp_settings(window: InteractivePlot) -> tuple[str, float, float] | None:
-    custom_label = window.inp_dataset_label_input.text().strip()
+def _load_freezing_temperatures_from_path(
+    window: InteractivePlot,
+    file_path: str,
+    source_label: str = "file",
+) -> list[float]:
+    freezing_temperatures, errors = deserialize_freezing_temperatures(file_path)
+    source_name = os.path.basename(file_path)
+    for line, error in errors:
+        window.append_log_message(
+            f"Skipped malformed line in {source_label} {source_name}: {line.strip()} ({error})",
+            window.LOG_TAB_INP,
+            window.LOG_LEVEL_WARNING,
+        )
 
-    try:
-        droplet_volume_ul = float(window.inp_droplet_volume_input.text().strip())
-    except ValueError:
-        window.append_log_message("Droplet volume must be a number in uL.", window.LOG_TAB_INP, window.LOG_LEVEL_WARNING)
-        return None
+    temperatures = extract_valid_freezing_temperatures(freezing_temperatures)
+    if not temperatures:
+        window.append_log_message(
+            f"No valid freezing temperatures found in {file_path}",
+            window.LOG_TAB_INP,
+            window.LOG_LEVEL_WARNING,
+        )
+        return []
 
-    try:
-        dilution_factor = float(window.inp_dilution_factor_input.text().strip())
-    except ValueError:
-        window.append_log_message("Dilution factor must be a number.", window.LOG_TAB_INP, window.LOG_LEVEL_WARNING)
-        return None
-
-    if droplet_volume_ul <= 0:
-        window.append_log_message("Droplet volume must be greater than zero.", window.LOG_TAB_INP, window.LOG_LEVEL_WARNING)
-        return None
-    if dilution_factor <= 0:
-        window.append_log_message("Dilution factor must be greater than zero.", window.LOG_TAB_INP, window.LOG_LEVEL_WARNING)
-        return None
-
-    return custom_label, droplet_volume_ul, dilution_factor
+    return temperatures
 
 
 def _make_unique_label(window: InteractivePlot, base_label: str) -> str:

@@ -319,34 +319,11 @@ def build_inp_tab(window: InteractivePlot) -> None:
         "Load reviewed freezing temperatures, apply the droplet volume and dilution settings, then compare one or more INP curves on the same plot."
     ))
 
-    settings_group = QGroupBox("Calculation Settings")
-    settings_layout = QFormLayout(settings_group)
-
-    window.inp_dataset_label_input = QLineEdit()
-    window.inp_dataset_label_input.setPlaceholderText("Optional custom label for the next dataset")
-    settings_layout.addRow("Dataset label:", window.inp_dataset_label_input)
-
-    window.inp_droplet_volume_input = QLineEdit(f"{window.inp_default_droplet_volume_ul:g}")
-    window.inp_droplet_volume_input.setPlaceholderText("Example: 10")
-    settings_layout.addRow("Droplet volume (uL):", window.inp_droplet_volume_input)
-
-    window.inp_dilution_factor_input = QLineEdit(f"{window.inp_default_dilution_factor:g}")
-    window.inp_dilution_factor_input.setPlaceholderText("Example: 1")
-    settings_layout.addRow("Dilution factor:", window.inp_dilution_factor_input)
-
-    settings_hint = QLabel(
-        "INP concentration is calculated as -ln(1 - frozen fraction) divided by droplet volume in mL, then multiplied by the dilution factor."
-    )
-    settings_hint.setObjectName("hintLabel")
-    settings_hint.setWordWrap(True)
-    settings_layout.addRow("", settings_hint)
-    right_layout.addWidget(settings_group)
-
     sources_group = QGroupBox("Add Freezing Temperatures")
     sources_layout = QVBoxLayout(sources_group)
 
     window.add_inp_file_button = QPushButton("Add Freezing Temperatures File")
-    window.add_inp_file_button.clicked.connect(window.add_inp_dataset_from_files)
+    window.add_inp_file_button.clicked.connect(window.prompt_and_add_inp_dataset_from_files)
     sources_layout.addWidget(window.add_inp_file_button)
 
     preset_row = QHBoxLayout()
@@ -363,12 +340,12 @@ def build_inp_tab(window: InteractivePlot) -> None:
     preset_row.addWidget(window.inp_preset_combo, 1)
 
     window.add_inp_preset_button = QPushButton("Add Preset")
-    window.add_inp_preset_button.clicked.connect(window.add_selected_inp_preset)
+    window.add_inp_preset_button.clicked.connect(window.prompt_and_add_selected_inp_preset)
     preset_row.addWidget(window.add_inp_preset_button)
     sources_layout.addLayout(preset_row)
 
     window.add_current_analysis_to_inp_button = QPushButton("Add Current Results From Analyze Freezing")
-    window.add_current_analysis_to_inp_button.clicked.connect(window.add_current_analysis_to_inp)
+    window.add_current_analysis_to_inp_button.clicked.connect(window.prompt_and_add_current_analysis_to_inp_from_tab4)
     sources_layout.addWidget(window.add_current_analysis_to_inp_button)
     right_layout.addWidget(sources_group)
 
