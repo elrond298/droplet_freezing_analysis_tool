@@ -782,7 +782,8 @@ class InteractivePlot(QMainWindow):
 
     def configure_figure_padding(self, figure, image_mode=False, reserve_title_space=False):
         if image_mode:
-            top_padding = 0.97 if reserve_title_space else 0.99
+            # top_padding = 0.97 if reserve_title_space else 0.99
+            top_padding = 0.97  # consistently reserve space across tabs
             figure.subplots_adjust(left=0.01, right=0.99, top=top_padding, bottom=0.01)
         else:
             figure.subplots_adjust(left=0.10, right=0.98, top=0.94, bottom=0.12)
