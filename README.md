@@ -115,7 +115,7 @@ gui_selection_cache.py
 
 ### Saved Inner-Circle Coordinate Fix
 
-Earlier versions of the GUI could save incorrect `y` coordinates for inner circles when the preview image had been rotated before export. The symptom was that saved circles looked mirrored on the `y` axis when reloaded or visualized with `test.py`.
+Earlier versions of the GUI could save incorrect `y` coordinates for inner circles when the preview image had been rotated before export. The symptom was that saved circles looked mirrored on the `y` axis when reloaded or visualized with `scripts/visualize_inner_circles.py`.
 
 Cause:
 
