@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                              QPushButton, QLineEdit, QSlider, QLabel, QSpinBox, QCheckBox,
                              QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox, QFormLayout,
                              QSizePolicy, QScrollArea, QProgressBar, QDoubleSpinBox, QDialog,
+                             QStyle,
                              QDialogButtonBox)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QKeySequence, QShortcut
@@ -1282,12 +1283,23 @@ class InteractivePlot(QMainWindow):
     def restore_cached_selections(self) -> None:
         cache_restore_cached_selections(self)
 
-    def create_selection_group(self, title: str, button_text: str, selection_method: Callable[[], None]) -> tuple[QGroupBox, QLabel]:
+    def set_standard_button_icon(self, button: QPushButton, icon: QStyle.StandardPixmap) -> None:
+        button.setIcon(self.style().standardIcon(icon))
+
+    def create_selection_group(
+        self,
+        title: str,
+        button_text: str,
+        selection_method: Callable[[], None],
+        icon: QStyle.StandardPixmap | None = None,
+    ) -> tuple[QGroupBox, QLabel]:
         group = QGroupBox(title)
         layout = QVBoxLayout()
         layout.setSpacing(8)
         
         button = QPushButton(button_text)
+        if icon is not None:
+            self.set_standard_button_icon(button, icon)
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         button.clicked.connect(selection_method)
         

@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QSlider,
+    QStyle,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -98,6 +99,7 @@ def build_tube_locating_tab(window: InteractivePlot) -> None:
     detection_layout.setSpacing(10)
 
     window.refresh_button = QPushButton("Run Tube Detection")
+    window.set_standard_button_icon(window.refresh_button, QStyle.StandardPixmap.SP_BrowserReload)
     window.refresh_button.clicked.connect(window.run_tube_detection_and_render_plot)
     detection_layout.addWidget(window.refresh_button)
 
@@ -165,6 +167,7 @@ def build_tube_locating_tab(window: InteractivePlot) -> None:
     review_layout.addWidget(review_hint)
 
     window.save_button = QPushButton("Save Inner-Circle Locations")
+    window.set_standard_button_icon(window.save_button, QStyle.StandardPixmap.SP_DialogSaveButton)
     window.save_button.clicked.connect(window.save_detected_inner_circles)
     review_layout.addWidget(window.save_button)
     right_layout.addWidget(review_group)
@@ -213,18 +216,31 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
     input_layout = QVBoxLayout(input_group)
 
     image_dir_group, window.image_directory_label = window.create_selection_group(
-        "Image Directory", "Choose Image Folder For Analysis", window.select_image_directory)
+        "Image Directory",
+        "Choose Image Folder For Analysis",
+        window.select_image_directory,
+        QStyle.StandardPixmap.SP_DirOpenIcon,
+    )
     input_layout.addWidget(image_dir_group)
 
     temp_rec_group, window.temperature_recording_label = window.create_selection_group(
-        "Temperature Recording", "Choose Temperature Recording File", window.select_temperature_recording)
+        "Temperature Recording",
+        "Choose Temperature Recording File",
+        window.select_temperature_recording,
+        QStyle.StandardPixmap.SP_DialogOpenButton,
+    )
     input_layout.addWidget(temp_rec_group)
 
     tube_loc_group, window.tube_locations_label = window.create_selection_group(
-        "Tube Locations", "Choose Saved Tube-Location File", window.select_tube_locations)
+        "Tube Locations",
+        "Choose Saved Tube-Location File",
+        window.select_tube_locations,
+        QStyle.StandardPixmap.SP_DialogOpenButton,
+    )
     input_layout.addWidget(tube_loc_group)
 
     window.start_load_timeseries_button = QPushButton("Load Brightness Timeseries")
+    window.set_standard_button_icon(window.start_load_timeseries_button, QStyle.StandardPixmap.SP_MediaPlay)
     window.start_load_timeseries_button.clicked.connect(window.start_brightness_series_analysis)
     input_layout.addWidget(window.start_load_timeseries_button)
 
@@ -243,6 +259,9 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
     window.prev_button = QPushButton("Show Previous Tube")
     window.next_button = QPushButton("Show Next Tube")
     window.discard_button = QPushButton("Mark Current Tube As Not Available")
+    window.set_standard_button_icon(window.prev_button, QStyle.StandardPixmap.SP_ArrowBack)
+    window.set_standard_button_icon(window.next_button, QStyle.StandardPixmap.SP_ArrowForward)
+    window.set_standard_button_icon(window.discard_button, QStyle.StandardPixmap.SP_TrashIcon)
     window.prev_button.clicked.connect(window.previous_tube)
     window.next_button.clicked.connect(window.next_tube)
     window.discard_button.clicked.connect(window.discard_current_tube_freezing_point)
@@ -261,10 +280,13 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
     export_group = QGroupBox("Import / Export")
     export_layout = QVBoxLayout(export_group)
     window.send_to_inp_button = QPushButton("Add Current Results To INP Plot")
+    window.set_standard_button_icon(window.send_to_inp_button, QStyle.StandardPixmap.SP_DialogApplyButton)
     window.send_to_inp_button.clicked.connect(window.prompt_and_add_current_analysis_to_inp)
     window.save_button_freezing_temperatures = QPushButton("Export Reviewed Freezing Temperatures")
+    window.set_standard_button_icon(window.save_button_freezing_temperatures, QStyle.StandardPixmap.SP_DialogSaveButton)
     window.save_button_freezing_temperatures.clicked.connect(window.save_freezing_events_data)
     window.load_button_freezing_temperatures = QPushButton("Import Saved Freezing Temperatures")
+    window.set_standard_button_icon(window.load_button_freezing_temperatures, QStyle.StandardPixmap.SP_DialogOpenButton)
     window.load_button_freezing_temperatures.clicked.connect(window.load_freezing_events_data)
     export_layout.addWidget(window.send_to_inp_button)
     export_layout.addWidget(window.save_button_freezing_temperatures)
@@ -323,6 +345,7 @@ def build_inp_tab(window: InteractivePlot) -> None:
     sources_layout = QVBoxLayout(sources_group)
 
     window.add_inp_file_button = QPushButton("Add Freezing Temperatures File")
+    window.set_standard_button_icon(window.add_inp_file_button, QStyle.StandardPixmap.SP_DialogOpenButton)
     window.add_inp_file_button.clicked.connect(window.prompt_and_add_inp_dataset_from_files)
     sources_layout.addWidget(window.add_inp_file_button)
 
@@ -340,11 +363,13 @@ def build_inp_tab(window: InteractivePlot) -> None:
     preset_row.addWidget(window.inp_preset_combo, 1)
 
     window.add_inp_preset_button = QPushButton("Add Preset")
+    window.set_standard_button_icon(window.add_inp_preset_button, QStyle.StandardPixmap.SP_DialogApplyButton)
     window.add_inp_preset_button.clicked.connect(window.prompt_and_add_selected_inp_preset)
     preset_row.addWidget(window.add_inp_preset_button)
     sources_layout.addLayout(preset_row)
 
     window.add_current_analysis_to_inp_button = QPushButton("Add Current Results From Analyze Freezing")
+    window.set_standard_button_icon(window.add_current_analysis_to_inp_button, QStyle.StandardPixmap.SP_DialogApplyButton)
     window.add_current_analysis_to_inp_button.clicked.connect(window.prompt_and_add_current_analysis_to_inp_from_tab4)
     sources_layout.addWidget(window.add_current_analysis_to_inp_button)
     right_layout.addWidget(sources_group)
@@ -358,10 +383,12 @@ def build_inp_tab(window: InteractivePlot) -> None:
 
     dataset_buttons = QHBoxLayout()
     window.remove_inp_dataset_button = QPushButton("Remove Selected Dataset")
+    window.set_standard_button_icon(window.remove_inp_dataset_button, QStyle.StandardPixmap.SP_TrashIcon)
     window.remove_inp_dataset_button.clicked.connect(window.remove_selected_inp_dataset)
     dataset_buttons.addWidget(window.remove_inp_dataset_button)
 
     window.clear_inp_datasets_button = QPushButton("Clear All Datasets")
+    window.set_standard_button_icon(window.clear_inp_datasets_button, QStyle.StandardPixmap.SP_DialogResetButton)
     window.clear_inp_datasets_button.clicked.connect(window.clear_inp_datasets)
     dataset_buttons.addWidget(window.clear_inp_datasets_button)
     datasets_layout.addLayout(dataset_buttons)
@@ -417,10 +444,12 @@ def build_image_cropping_tab(window: InteractivePlot) -> None:
     image_layout.addWidget(window.sample_image_path_label)
 
     window.sample_image_path_button = QPushButton("Choose Source Image")
+    window.set_standard_button_icon(window.sample_image_path_button, QStyle.StandardPixmap.SP_DialogOpenButton)
     window.sample_image_path_button.clicked.connect(window.select_sample_image_path)
     image_layout.addWidget(window.sample_image_path_button)
 
     window.load_crop_image_button = QPushButton("Load Selected Image Into Preview")
+    window.set_standard_button_icon(window.load_crop_image_button, QStyle.StandardPixmap.SP_MediaPlay)
     window.load_crop_image_button.clicked.connect(window.load_selected_image_into_preparation_view)
     image_layout.addWidget(window.load_crop_image_button)
     control_layout.addWidget(image_group)
@@ -442,6 +471,7 @@ def build_image_cropping_tab(window: InteractivePlot) -> None:
     rotation_group_layout.addWidget(rotation_hint)
 
     window.apply_rotation_button = QPushButton("Apply Rotation To Preview")
+    window.set_standard_button_icon(window.apply_rotation_button, QStyle.StandardPixmap.SP_DialogApplyButton)
     window.apply_rotation_button.clicked.connect(window.apply_preparation_image_rotation)
     rotation_group_layout.addWidget(window.apply_rotation_button)
     control_layout.addWidget(rotation_group)
@@ -454,10 +484,12 @@ def build_image_cropping_tab(window: InteractivePlot) -> None:
     crop_layout.addWidget(crop_hint)
 
     window.apply_crop_button = QPushButton("Apply Crop And Open Tube Detection")
+    window.set_standard_button_icon(window.apply_crop_button, QStyle.StandardPixmap.SP_ArrowForward)
     window.apply_crop_button.clicked.connect(window.apply_selected_crop_to_tube_detection)
     crop_layout.addWidget(window.apply_crop_button)
 
     window.restore_image_button = QPushButton("Restore Original Image Preview")
+    window.set_standard_button_icon(window.restore_image_button, QStyle.StandardPixmap.SP_DialogResetButton)
     window.restore_image_button.clicked.connect(window.restore_original_preparation_image)
     crop_layout.addWidget(window.restore_image_button)
     control_layout.addWidget(crop_group)
