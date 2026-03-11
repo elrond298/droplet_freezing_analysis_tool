@@ -1,47 +1,77 @@
 * Droplet Freezing Assay Offline Analysis Application
 
-This application is designed for the analysis of droplet freezing assays. It provides multiple tabs for different functionalities such as tube locating, freezing detection, and image cropping. Below is a detailed explanation of each tab and its elements.
+This application is designed for the analysis of droplet freezing assays. In the current GUI, the recommended workflow is:
 
-** Tube Locating Tab
+1. Prepare the image
+2. Locate tubes and inner circles
+3. Analyze freezing events
+4. Adjust optional settings when needed
 
-The Tube Locating Tab is used to detect and manage PCR tubes within an image.
+The main tabs are ordered as follows:
 
-- **Image Selection**: Click the "Select an Image" button to choose an image file. The current image path is displayed below the button.
-- **Refresh Button**: Click the "Refresh" button to update the displayed image and detected tubes.
-- **Rotation Input**: Enter a rotation value or 'auto' to adjust the orientation of the detected tubes.
-- **Min Area Slider**: Adjust the minimum area threshold for tube detection.
-- **Circularity Slider**: Adjust the circularity threshold for tube detection.
-- **Save Inner Circles Button**: Click to save the detected inner circles to a file.
-- **Log Text Edit**: Displays log messages related to tube detection.
+1. =1. Prepare Image=
+2. =2. Locate Tubes=
+3. =3. Analyze Freezing=
+4. =4. Settings=
 
-** Freezing Detection Tab
+Below is a concise description of each step and its main controls.
 
-The Freezing Detection Tab is used to analyze freezing events based on temperature and brightness timeseries data.
+** Prepare Image Tab
 
-- **Image Directory Selection**: Click the "Select" button to choose the directory containing image files.
-- **Temperature Recording Selection**: Click the "Select" button to choose the temperature recording file.
-- **Tube Locations Selection**: Click the "Select" button to choose the tube locations file.
-- **Start Analysis Button**: Click to start the analysis of brightness timeseries data.
-- **Previous and Next Buttons**: Navigate between different tubes for detailed analysis.
-- **Go to Tube Input**: Enter a tube number and press Enter to jump to that tube.
-- **Save Freezing Temperatures Button**: Click to save the detected freezing temperatures to a file.
-- **Load Freezing Temperatures Button**: Click to load previously saved freezing temperatures.
-- **Log Text Edit**: Displays log messages related to freezing detection.
+The =Prepare Image= tab is the first step of the workflow. Use it to choose a reference image, rotate it if necessary, and crop the region that should be used for tube detection.
 
-** Image Cropping Tab
+- **Choose Source Image**: Select the reference image used for tube detection. In most cases, an image taken before freezing works best because the droplets are brighter.
+- **Load Selected Image Into Preview**: Load the selected image into the preview panel on the left.
+- **Rotation angle (degrees)**: Enter a rotation angle if the plate is slightly tilted. Positive values rotate counter-clockwise; negative values rotate clockwise.
+- **Apply Rotation To Preview**: Apply the rotation to the preview image.
+- **Crop Region Selection**: Drag a rectangle on the preview image to define the region for downstream tube detection.
+- **Apply Crop And Open Tube Detection**: Apply the selected crop to tube detection and, by default, switch to the =Locate Tubes= tab.
+- **Restore Original Image Preview**: Reset the preparation view to the original image and clear the current crop/rotation state.
 
-The Image Cropping Tab is used to crop images for more precise analysis.
+** Locate Tubes Tab
 
-- **Load Image Button**: Click to load an image for cropping.
-- **Apply Crop Button**: Click to apply the selected crop region to the image.
-- **Crop Region Selection**: Use the mouse to draw a rectangle around the area to crop.
+The =Locate Tubes= tab is used to detect PCR tubes and review the inner-circle positions that will later be used for brightness sampling.
 
-** Common Elements
+- **Run Tube Detection**: Run or rerun tube detection on the prepared image.
+- **Tubes array size (rows, columns)**: Enter the expected grid size. The program uses this layout to infer missing tube positions, so it must match the experiment setup.
+- **Grid rotation**: Use =auto= to estimate the tube-grid angle automatically, or enter a numeric angle manually.
+- **Min Area**: Adjust the minimum contour area used during tube detection.
+- **Circularity**: Adjust the circularity threshold used during tube detection.
+- **Manual Review**: Left click an incorrect inner circle to remove it. Right click anywhere on the image to add a new inner circle.
+- **Save Inner-Circle Locations**: Save the reviewed inner-circle positions to a file for later use in freezing analysis.
+- **Detection Log**: Shows progress messages, warnings, and errors related to tube detection.
 
-- **Log Text Edit**: Displays log messages for the current tab.
-- **Navigation Buttons**: Used to navigate between different tabs.
+** Analyze Freezing Tab
 
-** Special Features
+The =Analyze Freezing= tab is used to load the required inputs, extract brightness timeseries, detect freezing points, and review the result tube by tube.
 
-- **Interactive Plotting**: The application uses interactive plotting for real-time updates and selections.
-- **Multi-threading**: The brightness timeseries analysis runs in a separate thread to prevent UI freezing.
+- **Image Directory**: Select the folder containing the experiment images.
+- **Temperature Recording**: Select the file containing the temperature measurements.
+- **Tube Locations**: Select the saved inner-circle file produced in the previous step.
+- **Load Brightness Timeseries**: Start the analysis. The application loads the selected inputs, extracts the brightness timeseries for each tube, and computes initial freezing-point estimates.
+- **Progress Bar**: Shows the current analysis progress.
+- **Show Previous Tube / Show Next Tube**: Move through the reviewed tubes one by one.
+- **Jump to tube number**: Enter a tube index and press Enter to jump directly to that tube. Tube numbering currently starts at 0.
+- **Mark Current Tube As Not Available**: Mark the current tube as unavailable when it should be excluded from later analysis. Exported results store this as =N/A=.
+- **Interactive Span Selection**: Drag horizontally across the brightness plot to define a temperature range and recalculate the freezing point within that range.
+- **Export Reviewed Freezing Temperatures**: Save the reviewed freezing-temperature results.
+- **Import Saved Freezing Temperatures**: Load previously exported results and continue reviewing them.
+- **Analysis Log**: Shows progress messages, warnings, and errors related to freezing analysis.
+
+** Settings Tab
+
+The =Settings= tab contains optional controls that affect defaults and convenience features across the GUI.
+
+- **Detection Defaults**: Set default values for tube-grid size, rotation mode, minimum area, and circularity threshold.
+- **Selection Persistence**: Control whether the GUI restores the last selected files and folders on startup and whether it saves new selections automatically.
+- **Workflow Behavior**: Control whether applying a crop automatically opens the =Locate Tubes= tab.
+- **Display Controls**: Adjust interface font size and some display-related options.
+- **Shortcuts Summary**: Review the available keyboard shortcuts.
+
+** Notes
+
+- Each workflow tab has its own log panel.
+- Tube detection works on the prepared image, but saved inner-circle positions are restored to the original image coordinates before export.
+- Brightness-timeseries analysis runs in a worker thread so the GUI remains responsive.
+- For a normal workflow, most users only need the first three tabs in order.
+
