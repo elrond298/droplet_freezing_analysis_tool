@@ -8,6 +8,7 @@ class SelectionState:
     image_directory: str | None = None
     temperature_recording_file: str | None = None
     tube_location_file: str | None = None
+    analysis_temperature_cutoff_timestamp: str = "2023-04-02 14:00:00"
     ui_font_size: int = 10
     detection_default_tubes_size: tuple[int, int] = (10, 8)
     detection_default_rotation: str = "auto"

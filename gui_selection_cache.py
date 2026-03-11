@@ -54,18 +54,21 @@ def save_selection_cache(window: InteractivePlot) -> None:
     image_directory = window.image_directory
     temperature_recording_file = window.temperature_recording_file
     tube_location_file = window.tube_location_file
+    analysis_temperature_cutoff_timestamp = window.analysis_temperature_cutoff_timestamp
 
     if not window.auto_save_selected_inputs:
         sample_image_path = existing_cached_data.get('sample_image_path')
         image_directory = existing_cached_data.get('image_directory')
         temperature_recording_file = existing_cached_data.get('temperature_recording_file')
         tube_location_file = existing_cached_data.get('tube_location_file')
+        analysis_temperature_cutoff_timestamp = existing_cached_data.get('analysis_temperature_cutoff_timestamp')
 
     cached_data = {
         'sample_image_path': sample_image_path,
         'image_directory': image_directory,
         'temperature_recording_file': temperature_recording_file,
         'tube_location_file': tube_location_file,
+        'analysis_temperature_cutoff_timestamp': analysis_temperature_cutoff_timestamp,
         'ui_font_size': window.ui_font_size,
         'detection_default_tubes_size': list(window.detection_default_tubes_size),
         'detection_default_rotation': window.detection_default_rotation,
@@ -168,6 +171,13 @@ def restore_cached_selections(window: InteractivePlot) -> None:
         tube_location_file = cached_data.get('tube_location_file')
         if isinstance(tube_location_file, str) and os.path.isfile(tube_location_file):
             window.tube_location_file = tube_location_file
+
+        analysis_temperature_cutoff_timestamp = cached_data.get('analysis_temperature_cutoff_timestamp')
+        if isinstance(analysis_temperature_cutoff_timestamp, str) and analysis_temperature_cutoff_timestamp.strip():
+            window.analysis_temperature_cutoff_timestamp = analysis_temperature_cutoff_timestamp.strip()
+
+    if hasattr(window, 'analysis_temperature_cutoff_input'):
+        window.analysis_temperature_cutoff_input.setText(window.analysis_temperature_cutoff_timestamp)
 
     refresh_image_path_labels(window)
     refresh_analysis_input_labels(window)

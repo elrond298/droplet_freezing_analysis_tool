@@ -8,12 +8,16 @@ from collections import defaultdict
 import multiprocessing as mp
 from scipy.signal import find_peaks
 
-def load_temperature_timeseries(temperature_recordings):
+DEFAULT_TEMPERATURE_CUTOFF_TIMESTAMP = "2023-04-02 14:00:00"
+
+def load_temperature_timeseries(temperature_recordings, cutoff_timestamp=DEFAULT_TEMPERATURE_CUTOFF_TIMESTAMP):
     """
     Loads and processes temperature timeseries data from a CSV file.
 
     Args:
         temperature_recordings (str): Path to the CSV file containing temperature recordings.
+        cutoff_timestamp (str | datetime.datetime | pd.Timestamp | None):
+            Lower-bound timestamp for filtering temperature rows.
 
     Returns:
         pd.DataFrame: A DataFrame with columns 'timestamp' and 'temperature'.
@@ -27,9 +31,9 @@ def load_temperature_timeseries(temperature_recordings):
     df["TIMESTAMP"] = pd.to_datetime(df["TIMESTAMP"])
 
     # Apply the cutoff timestamp
-    TEMPERATURE_CUTOFF_TIMESTAMP = "2023-04-02 14:00:00"
-    cutoff_timestamp = pd.to_datetime(TEMPERATURE_CUTOFF_TIMESTAMP)
-    df = df[df["TIMESTAMP"] >= cutoff_timestamp]
+    if cutoff_timestamp is not None and str(cutoff_timestamp).strip():
+        normalized_cutoff_timestamp = pd.to_datetime(cutoff_timestamp)
+        df = df[df["TIMESTAMP"] >= normalized_cutoff_timestamp]
 
     # Create a new DataFrame with the timestamp column
     new_df = pd.DataFrame()

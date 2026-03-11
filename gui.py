@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import os
 import html
+import datetime
 from typing import Any, Callable
 from matplotlib import rcParams
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
@@ -219,6 +220,14 @@ class InteractivePlot(QMainWindow):
     @tube_location_file.setter
     def tube_location_file(self, value: str | None) -> None:
         self.selection_state.tube_location_file = value
+
+    @property
+    def analysis_temperature_cutoff_timestamp(self) -> str:
+        return self.selection_state.analysis_temperature_cutoff_timestamp
+
+    @analysis_temperature_cutoff_timestamp.setter
+    def analysis_temperature_cutoff_timestamp(self, value: str) -> None:
+        self.selection_state.analysis_temperature_cutoff_timestamp = value
 
     @property
     def detection_default_tubes_size(self) -> tuple[int, int]:
@@ -1146,7 +1155,7 @@ class InteractivePlot(QMainWindow):
         self.ax2.text(
             0.5,
             0.52,
-            "1. Select the image folder, temperature file, and tube-location file on the right.\n"
+            "1. Select the image folder, temperature file, tube-location file, and cutoff timestamp on the right.\n"
             "2. Click 'Load Brightness Timeseries' to generate the plot for each tube.\n"
             "3. Review one tube at a time, then adjust or export the freezing temperatures.",
             transform=self.ax2.transAxes,
@@ -1395,8 +1404,36 @@ class InteractivePlot(QMainWindow):
             self.validate_directory_path(self.image_directory, "Image directory", self.LOG_TAB_ANALYZE),
             self.validate_file_path(self.temperature_recording_file, "Temperature recording file", self.LOG_TAB_ANALYZE),
             self.validate_file_path(self.tube_location_file, "Tube locations file", self.LOG_TAB_ANALYZE),
+            self.validate_analysis_temperature_cutoff_timestamp(),
         )
         return all(checks)
+
+    def validate_analysis_temperature_cutoff_timestamp(self) -> bool:
+        value = (self.analysis_temperature_cutoff_timestamp or "").strip()
+        if not value:
+            self.append_log_message(
+                "Temperature cutoff timestamp is required. Use the format YYYY-MM-DD HH:MM:SS.",
+                self.LOG_TAB_ANALYZE,
+                self.LOG_LEVEL_ERROR,
+            )
+            return False
+
+        try:
+            normalized_value = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            self.append_log_message(
+                f"Invalid temperature cutoff timestamp: {value}. Expected format: YYYY-MM-DD HH:MM:SS.",
+                self.LOG_TAB_ANALYZE,
+                self.LOG_LEVEL_ERROR,
+            )
+            return False
+
+        self.analysis_temperature_cutoff_timestamp = normalized_value
+        if hasattr(self, 'analysis_temperature_cutoff_input'):
+            self.analysis_temperature_cutoff_input.setText(normalized_value)
+        if self.auto_save_selected_inputs:
+            self.save_selection_cache()
+        return True
 
     def refresh_image_path_labels(self) -> None:
         cache_refresh_image_path_labels(self)
@@ -1509,6 +1546,14 @@ class InteractivePlot(QMainWindow):
             if self.auto_save_selected_inputs:
                 self.save_selection_cache()
             self.append_log_message(f"Tube locations selected: {file}", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
+
+    def update_analysis_temperature_cutoff_timestamp(self) -> None:
+        if not hasattr(self, 'analysis_temperature_cutoff_input'):
+            return
+
+        self.analysis_temperature_cutoff_timestamp = self.analysis_temperature_cutoff_input.text().strip()
+        if self.auto_save_selected_inputs:
+            self.save_selection_cache()
 
     def run_tube_detection_and_render_plot(self) -> None:
         detection_run_tube_detection_and_render_plot(self)

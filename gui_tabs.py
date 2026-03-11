@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from PyQt6.QtWidgets import (
     QComboBox,
     QFormLayout,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -278,7 +279,11 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
     ))
 
     input_group = QGroupBox("Analysis Inputs")
-    input_layout = QVBoxLayout(input_group)
+    input_layout = QGridLayout(input_group)
+    input_layout.setHorizontalSpacing(12)
+    input_layout.setVerticalSpacing(10)
+    input_layout.setColumnStretch(0, 1)
+    input_layout.setColumnStretch(1, 1)
 
     image_dir_group, window.image_directory_label = window.create_selection_group(
         "Image Directory",
@@ -286,7 +291,7 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
         window.select_image_directory,
         QStyle.StandardPixmap.SP_DirOpenIcon,
     )
-    input_layout.addWidget(image_dir_group)
+    input_layout.addWidget(image_dir_group, 0, 0)
 
     temp_rec_group, window.temperature_recording_label = window.create_selection_group(
         "Temperature Recording",
@@ -294,7 +299,7 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
         window.select_temperature_recording,
         QStyle.StandardPixmap.SP_DialogOpenButton,
     )
-    input_layout.addWidget(temp_rec_group)
+    input_layout.addWidget(temp_rec_group, 0, 1)
 
     tube_loc_group, window.tube_locations_label = window.create_selection_group(
         "Tube Locations",
@@ -302,12 +307,27 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
         window.select_tube_locations,
         QStyle.StandardPixmap.SP_DialogOpenButton,
     )
-    input_layout.addWidget(tube_loc_group)
+    input_layout.addWidget(tube_loc_group, 1, 0)
+
+    cutoff_group = QGroupBox("Temperature Cutoff Timestamp")
+    cutoff_layout = QVBoxLayout(cutoff_group)
+    cutoff_layout.setSpacing(8)
+
+    window.analysis_temperature_cutoff_input = QLineEdit(window.analysis_temperature_cutoff_timestamp)
+    window.analysis_temperature_cutoff_input.setPlaceholderText("YYYY-MM-DD HH:MM:SS")
+    window.analysis_temperature_cutoff_input.editingFinished.connect(window.update_analysis_temperature_cutoff_timestamp)
+    cutoff_layout.addWidget(window.analysis_temperature_cutoff_input)
+
+    cutoff_hint_label = QLabel("Format: YYYY-MM-DD HH:MM:SS")
+    cutoff_hint_label.setWordWrap(True)
+    cutoff_layout.addWidget(cutoff_hint_label)
+
+    input_layout.addWidget(cutoff_group, 1, 1)
 
     window.start_load_timeseries_button = QPushButton("Load Brightness Timeseries")
     window.set_standard_button_icon(window.start_load_timeseries_button, QStyle.StandardPixmap.SP_MediaPlay)
     window.start_load_timeseries_button.clicked.connect(window.start_brightness_series_analysis)
-    input_layout.addWidget(window.start_load_timeseries_button)
+    input_layout.addWidget(window.start_load_timeseries_button, 2, 0, 1, 2)
 
     window.analysis_progress_bar = QProgressBar()
     window.analysis_progress_bar.setObjectName("analysisProgressBar")
@@ -315,7 +335,7 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
     window.analysis_progress_bar.setValue(0)
     window.analysis_progress_bar.setProperty("completed", False)
     window.analysis_progress_bar.setFormat("Waiting for the image folder, temperature file, tube locations to start ...")
-    input_layout.addWidget(window.analysis_progress_bar)
+    input_layout.addWidget(window.analysis_progress_bar, 3, 0, 1, 2)
 
     right_layout.addWidget(input_group)
 

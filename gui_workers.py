@@ -28,15 +28,25 @@ class BrightnessWorker(QObject):
     progress = pyqtSignal(int)
     log = pyqtSignal(str)
 
-    def __init__(self, image_directory: str, tube_location_file: str, temperature_recording_file: str) -> None:
+    def __init__(
+        self,
+        image_directory: str,
+        tube_location_file: str,
+        temperature_recording_file: str,
+        analysis_temperature_cutoff_timestamp: str,
+    ) -> None:
         super().__init__()
         self.image_directory = image_directory
         self.tube_location_file = tube_location_file
         self.temperature_recording_file = temperature_recording_file
+        self.analysis_temperature_cutoff_timestamp = analysis_temperature_cutoff_timestamp
 
     def run(self) -> None:
         try:
-            temperature_recordings = load_temperature_timeseries(self.temperature_recording_file)
+            temperature_recordings = load_temperature_timeseries(
+                self.temperature_recording_file,
+                cutoff_timestamp=self.analysis_temperature_cutoff_timestamp,
+            )
             self.progress.emit(5)
 
             brightness_timeseries = load_brightness_timeseries(
