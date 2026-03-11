@@ -133,6 +133,7 @@ def restore_cached_selections(window: InteractivePlot) -> None:
     if isinstance(ui_font_size, int):
         window.set_ui_font_size(ui_font_size, persist=False)
 
+    # Restore settings-driven controls before reapplying cached inputs so the UI and defaults stay in sync.
     window.refresh_settings_controls()
     window.apply_detection_defaults_to_locate_controls(schedule=False)
 

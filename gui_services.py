@@ -27,6 +27,7 @@ def run_tube_detection(image: Any, min_area: int, circularity_threshold: float, 
 def render_tube_detection_overlay(image: Any, all_tubes: list[dict[str, Any]], inner_circles: list[dict[str, Any]]) -> Any:
     img_with_tubes = image.copy()
 
+    # Tube outlines and inner circles are expected to stay positionally aligned here.
     for tube, inner_circle in zip(all_tubes, inner_circles):
         color = (0, 255, 0) if 'inferred' not in tube else (0, 0, 255)
         cv2.circle(img_with_tubes, (tube['x'], tube['y']), tube['radius'], color, 2)
@@ -74,6 +75,7 @@ def restore_circle_to_original_image(circle: dict[str, Any], crop_region: tuple[
     restored_circle['y'] = int(round(restored_circle['y']))
     restored_circle['radius'] = int(round(restored_circle.get('radius', 10)))
 
+    # Undo the crop offset first, then undo the rotation to map the circle back into original-image coordinates.
     if crop_region is not None:
         x_offset, y_offset, _, _ = crop_region
         restored_circle['x'] += x_offset
@@ -148,6 +150,7 @@ def compute_analysis_results(temperature_recordings: Any, brightness_timeseries:
 
 
 def build_current_tube_series(temperature_recordings: Any, brightness_timeseries: Any, current_tube: int) -> tuple[Any, Any, Any]:
+    # Align both sources on shared timestamps before extracting the selected tube's series.
     common_timestamps = np.intersect1d(
         temperature_recordings['timestamp'],
         brightness_timeseries['timestamp'],

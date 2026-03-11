@@ -109,6 +109,7 @@ def start_brightness_series_analysis(window: InteractivePlot) -> None:
     window.analysis_progress_bar.setValue(0)
     window.analysis_progress_bar.setFormat("Starting brightness-timeseries analysis for the selected inputs... %p%")
 
+    # Run the worker in a dedicated thread and route progress/results back through Qt signals.
     window.thread = QThread()
     window.worker = BrightnessWorker(window.image_directory, window.tube_location_file, window.temperature_recording_file)
     window.worker.moveToThread(window.thread)
