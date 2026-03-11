@@ -5,14 +5,16 @@ This application is designed for the analysis of droplet freezing assays. In the
 1. Prepare the image
 2. Locate tubes and inner circles
 3. Analyze freezing events
-4. Adjust optional settings when needed
+4. Compare INP concentration curves when needed
+5. Adjust optional settings when needed
 
 The main tabs are ordered as follows:
 
 1. =1. Prepare Image=
 2. =2. Locate Tubes=
 3. =3. Analyze Freezing=
-4. =4. Settings=
+4. =4. INP Concentration=
+5. =5. Settings=
 
 Below is a concise description of each step and its main controls.
 
@@ -48,7 +50,8 @@ The =Analyze Freezing= tab is used to load the required inputs, extract brightne
 - **Image Directory**: Select the folder containing the experiment images.
 - **Temperature Recording**: Select the file containing the temperature measurements.
 - **Tube Locations**: Select the saved inner-circle file produced in the previous step.
-- **Load Brightness Timeseries**: Start the analysis. The application loads the selected inputs, extracts the brightness timeseries for each tube, and computes initial freezing-point estimates.
+- **Temperature Cutoff Timestamp**: Enter the lower-bound timestamp for temperature data in the format =YYYY-MM-DD HH:MM:SS=. Temperature rows earlier than this timestamp are ignored before matching them with the image timeseries.
+- **Load Brightness Timeseries**: Start the analysis. The application loads the selected inputs, applies the temperature cutoff timestamp, extracts the brightness timeseries for each tube, and computes initial freezing-point estimates.
 - **Progress Bar**: Shows the current analysis progress.
 - **Show Previous Tube / Show Next Tube**: Move through the reviewed tubes one by one.
 - **Jump to tube number**: Enter a tube index and press Enter to jump directly to that tube. Tube numbering currently starts at 0.
@@ -56,13 +59,29 @@ The =Analyze Freezing= tab is used to load the required inputs, extract brightne
 - **Interactive Span Selection**: Drag horizontally across the brightness plot to define a temperature range and recalculate the freezing point within that range.
 - **Export Reviewed Freezing Temperatures**: Save the reviewed freezing-temperature results.
 - **Import Saved Freezing Temperatures**: Load previously exported results and continue reviewing them.
+- **Add Current Results To INP Plot**: Open a dialog to enter a dataset label, droplet volume, and dilution factor, then add the currently reviewed analysis result to the INP comparison plot.
 - **Analysis Log**: Shows progress messages, warnings, and errors related to freezing analysis.
+
+** INP Concentration Tab
+
+The =INP Concentration= tab is used to convert reviewed freezing temperatures into cumulative INP concentration curves and compare multiple datasets on the same figure.
+
+- **Add Freezing Temperatures File**: Load one or more exported freezing-temperature text files.
+- **Add Preset**: Load one of the built-in example datasets.
+- **Add Current Results From Analyze Freezing**: Use the currently reviewed results already loaded in the =Analyze Freezing= tab.
+- **Dataset Parameters Dialog**: Each add action opens a dialog where you can set an optional dataset label, the droplet volume in uL, and the dilution factor used for the INP calculation.
+- **Loaded INP Datasets**: Lists the datasets currently shown on the plot, including the label and tube count used in the legend.
+- **Remove Selected Dataset**: Remove only the currently selected curve from the comparison plot.
+- **Clear All Datasets**: Remove every loaded INP dataset from the plot.
+- **INP Log**: Shows file-loading issues, malformed lines that were skipped, and dataset add/remove status messages.
+- **Plot Behavior**: The y-axis uses a logarithmic scale for cumulative INP concentration, and the x-axis shows freezing temperature from warmer to colder values.
 
 ** Settings Tab
 
 The =Settings= tab contains optional controls that affect defaults and convenience features across the GUI.
 
 - **Detection Defaults**: Set default values for tube-grid size, rotation mode, minimum area, and circularity threshold.
+- **INP Defaults**: Set default droplet volume and dilution factor values used when adding datasets to the INP plot.
 - **Selection Persistence**: Control whether the GUI restores the last selected files and folders on startup and whether it saves new selections automatically.
 - **Workflow Behavior**: Control whether applying a crop automatically opens the =Locate Tubes= tab.
 - **Display Controls**: Adjust interface font size and some display-related options.
@@ -73,5 +92,6 @@ The =Settings= tab contains optional controls that affect defaults and convenien
 - Each workflow tab has its own log panel.
 - Tube detection works on the prepared image, but saved inner-circle positions are restored to the original image coordinates before export.
 - Brightness-timeseries analysis runs in a worker thread so the GUI remains responsive.
-- For a normal workflow, most users only need the first three tabs in order.
+- For freezing-point analysis only, most users only need the first three tabs in order.
+- Use the fourth tab when you want to compare cumulative INP concentration curves across one or more reviewed datasets.
 
