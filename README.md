@@ -65,17 +65,26 @@ Then follow the workflow in the GUI or the additional usage notes in `usage/ä½¿ç
 
 - `Prepare Image`: load a source image, rotate it if needed, and crop the region that should be used for tube detection.
 - `Locate Tubes`: detect PCR tubes, adjust detection parameters such as minimum area and circularity, manually review inner circles, and save the tube locations.
-- `Analyze Freezing`: load the image directory, temperature recording, and saved tube locations, run the analysis, inspect each tube, and save or reload freezing-temperature results.
+- `Analyze Freezing`: load the image directory, temperature recording, saved tube locations, and a temperature cutoff timestamp, run the analysis, sort or jump directly to tubes during review, mark unavailable tubes, and save or reload freezing-temperature results.
 - `INP Concentration`: load one or more reviewed freezing-temperature datasets, add example presets or the current analysis results, and compare cumulative INP concentration curves on one plot.
 - `Settings`: adjust UI font size and review keyboard shortcuts.
 
 ### GUI Features
 
-- Selection paths are cached between sessions in `.gui_selection_cache.json`.
+- Selection paths and the analysis cutoff timestamp are cached between sessions in `.gui_selection_cache.json`.
 - Each workflow tab includes its own log panel for progress updates and errors.
 - Inner-circle positions can be exported and reused in the analysis step.
 - Freezing-temperature results can be saved and loaded later.
+- The Analyze Freezing tab can sort the review queue by tube index or detected freezing temperature, and the tube picker shows each tube's current result.
 - Reviewed freezing-temperature datasets can be converted into cumulative INP concentration plots with configurable droplet volume and dilution factor.
+
+### Analyze Freezing Notes
+
+- `Temperature Cutoff Timestamp` is required before analysis starts. Use the format `YYYY-MM-DD HH:MM:SS`.
+- The cutoff acts as a lower-bound filter for the temperature log: only temperature rows at or after that timestamp are used when matching temperatures to image brightness.
+- During review, use `Sort tube list by` to switch between the natural tube order and the detected freezing-temperature order.
+- Use `Select tube` to jump directly to a specific tube instead of stepping through the dataset one-by-one.
+- `Mark Current Tube As Not Available` records the current tube as unavailable and, if enabled in Settings, advances to the next tube automatically.
 
 ## GUI Module Structure
 
