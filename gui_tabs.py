@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QPoint, Qt
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
@@ -48,6 +48,71 @@ class FullMessageNavigationToolbar(NavigationToolbar):
                 window.statusBar().showMessage(full_message)
             else:
                 window.statusBar().clearMessage()
+
+
+class BoundedPopupComboBox(QComboBox):
+    popup_margin = 12
+
+    def showPopup(self) -> None:
+        super().showPopup()
+        self._bound_popup_to_screen()
+
+    def _bound_popup_to_screen(self) -> None:
+        popup_view = self.view()
+        popup_window = popup_view.window() if popup_view is not None else None
+        if popup_view is None or popup_window is None:
+            return
+
+        screen = self.screen()
+        popup_handle = popup_window.windowHandle()
+        if popup_handle is not None and popup_handle.screen() is not None:
+            screen = popup_handle.screen()
+        if screen is None:
+            return
+
+        screen_geometry = screen.availableGeometry()
+        margin = self.popup_margin
+        combo_top_left = self.mapToGlobal(QPoint(0, 0))
+        combo_bottom_left = self.mapToGlobal(QPoint(0, self.height()))
+        available_below = screen_geometry.bottom() - combo_bottom_left.y() - margin + 1
+        available_above = combo_top_left.y() - screen_geometry.top() - margin
+
+        row_height = popup_view.sizeHintForRow(0)
+        if row_height <= 0:
+            row_height = popup_view.fontMetrics().height() + 10
+
+        visible_rows = self.maxVisibleItems() if self.maxVisibleItems() > 0 else self.count()
+        visible_rows = max(1, min(max(self.count(), 1), max(visible_rows, 1)))
+        desired_height = max(
+            popup_window.sizeHint().height(),
+            row_height * visible_rows + 8,
+        )
+        target_height = min(desired_height, max(available_below, available_above, row_height))
+
+        desired_width = max(self.width(), popup_window.sizeHint().width())
+        max_width = max(160, screen_geometry.width() - (margin * 2))
+        target_width = min(desired_width, max_width)
+
+        open_below = available_below >= target_height or available_below >= available_above
+        if open_below:
+            target_y = min(
+                combo_bottom_left.y(),
+                screen_geometry.bottom() - margin - target_height + 1,
+            )
+        else:
+            target_y = max(
+                screen_geometry.top() + margin,
+                combo_top_left.y() - target_height,
+            )
+
+        max_x = screen_geometry.right() - margin - target_width + 1
+        target_x = min(max(combo_top_left.x(), screen_geometry.left() + margin), max_x)
+
+        popup_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        popup_view.setMinimumWidth(target_width)
+        popup_view.setMaximumHeight(target_height)
+        popup_window.resize(target_width, target_height)
+        popup_window.move(target_x, target_y)
 
 
 def create_log_group(window: InteractivePlot, title: str, attribute_name: str) -> QGroupBox:
@@ -245,8 +310,10 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
     input_layout.addWidget(window.start_load_timeseries_button)
 
     window.analysis_progress_bar = QProgressBar()
+    window.analysis_progress_bar.setObjectName("analysisProgressBar")
     window.analysis_progress_bar.setRange(0, 100)
     window.analysis_progress_bar.setValue(0)
+    window.analysis_progress_bar.setProperty("completed", False)
     window.analysis_progress_bar.setFormat("Waiting for the image folder, temperature file, tube locations to start ...")
     input_layout.addWidget(window.analysis_progress_bar)
 
@@ -254,6 +321,23 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
 
     review_group = QGroupBox("Tube Review")
     review_layout = QVBoxLayout(review_group)
+
+    selector_form = QFormLayout()
+    window.tube_sort_combo = BoundedPopupComboBox()
+    window.tube_sort_combo.addItem("Tube index", "index")
+    window.tube_sort_combo.addItem("Freezing temperature", "temperature")
+    window.tube_sort_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+    window.tube_sort_combo.setMaxVisibleItems(12)
+    window.tube_sort_combo.currentIndexChanged.connect(window.handle_analysis_tube_sort_changed)
+    selector_form.addRow("Sort tube list by:", window.tube_sort_combo)
+
+    window.tube_selector_combo = BoundedPopupComboBox()
+    window.tube_selector_combo.setPlaceholderText("Choose a tube to review")
+    window.tube_selector_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+    window.tube_selector_combo.setMaxVisibleItems(12)
+    window.tube_selector_combo.currentIndexChanged.connect(window.go_to_tube)
+    selector_form.addRow("Select tube:", window.tube_selector_combo)
+    review_layout.addLayout(selector_form)
 
     button_layout = QHBoxLayout()
     window.prev_button = QPushButton("Show Previous Tube")
@@ -269,12 +353,6 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
     button_layout.addWidget(window.next_button)
     button_layout.addWidget(window.discard_button)
     review_layout.addLayout(button_layout)
-
-    window.value_input = QLineEdit()
-    window.value_input.setPlaceholderText("Enter a tube number, press Enter to review")
-    window.value_input.returnPressed.connect(window.go_to_tube)
-    review_layout.addWidget(QLabel("Jump to tube number:"))
-    review_layout.addWidget(window.value_input)
     right_layout.addWidget(review_group)
 
     export_group = QGroupBox("Import / Export")
@@ -306,7 +384,8 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
     window.prev_button.setEnabled(False)
     window.next_button.setEnabled(False)
     window.discard_button.setEnabled(False)
-    window.value_input.setEnabled(False)
+    window.tube_sort_combo.setEnabled(False)
+    window.tube_selector_combo.setEnabled(False)
     window.send_to_inp_button.setEnabled(False)
     window.save_button_freezing_temperatures.setEnabled(False)
     window.load_button_freezing_temperatures.setEnabled(False)

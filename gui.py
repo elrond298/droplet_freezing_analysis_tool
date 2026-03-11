@@ -445,6 +445,22 @@ class InteractivePlot(QMainWindow):
         self.analysis_state.current_tube = value
 
     @property
+    def sorted_tube_indices(self) -> list[int]:
+        return self.analysis_state.sorted_tube_indices
+
+    @sorted_tube_indices.setter
+    def sorted_tube_indices(self, value: list[int]) -> None:
+        self.analysis_state.sorted_tube_indices = value
+
+    @property
+    def sorted_tube_position(self) -> int:
+        return self.analysis_state.sorted_tube_position
+
+    @sorted_tube_position.setter
+    def sorted_tube_position(self, value: int) -> None:
+        self.analysis_state.sorted_tube_position = value
+
+    @property
     def current_tube_temperature(self) -> Any:
         return self.analysis_state.current_tube_temperature
 
@@ -486,6 +502,84 @@ class InteractivePlot(QMainWindow):
 
     def format_tubes_size(self, tubes_size: tuple[int, int]) -> str:
         return f"{tubes_size[0]}, {tubes_size[1]}"
+
+    def format_analysis_tube_option(self, tube_index: int) -> str:
+        freezing_data = self.freezing_temperatures.get(tube_index)
+        if not isinstance(freezing_data, dict):
+            return f"Tube {tube_index} | No freezing data"
+
+        freezing_temp = freezing_data.get('temperature')
+        if isinstance(freezing_temp, (int, float)):
+            return f"Tube {tube_index} | {float(freezing_temp):.2f} °C"
+
+        return f"Tube {tube_index} | Not available"
+
+    def get_sorted_tube_indices(self) -> list[int]:
+        tube_indices = list(range(self.num_tubes))
+        tube_indices.sort(key=self._analysis_tube_sort_key)
+        return tube_indices
+
+    def _analysis_tube_sort_key(self, tube_index: int) -> tuple[float, int]:
+        sort_mode = 'index'
+        if hasattr(self, 'tube_sort_combo'):
+            current_data = self.tube_sort_combo.currentData()
+            if isinstance(current_data, str):
+                sort_mode = current_data
+
+        if sort_mode == 'temperature':
+            freezing_data = self.freezing_temperatures.get(tube_index, {})
+            freezing_temp = freezing_data.get('temperature') if isinstance(freezing_data, dict) else None
+            if isinstance(freezing_temp, (int, float)):
+                return (float(freezing_temp), tube_index)
+            return (float('inf'), tube_index)
+
+        return (float(tube_index), tube_index)
+
+    def refresh_analysis_tube_selector(self, preserve_navigation_position: bool = False) -> None:
+        if not hasattr(self, 'tube_selector_combo'):
+            return
+
+        current_tube = self.current_tube if self.num_tubes > 0 else None
+        previous_position = self.sorted_tube_position
+        tube_indices = self.get_sorted_tube_indices()
+        self.sorted_tube_indices = tube_indices
+
+        if tube_indices:
+            if preserve_navigation_position:
+                self.sorted_tube_position = min(max(previous_position, 0), len(tube_indices) - 1)
+            elif current_tube in tube_indices:
+                self.sorted_tube_position = tube_indices.index(current_tube)
+            else:
+                self.sorted_tube_position = 0
+        else:
+            self.sorted_tube_position = 0
+
+        self.tube_selector_combo.blockSignals(True)
+        self.tube_selector_combo.clear()
+        for tube_index in tube_indices:
+            self.tube_selector_combo.addItem(self.format_analysis_tube_option(tube_index), tube_index)
+
+        has_tubes = bool(tube_indices)
+        self.tube_selector_combo.setEnabled(has_tubes and self.next_button.isEnabled())
+        if hasattr(self, 'tube_sort_combo'):
+            self.tube_sort_combo.setEnabled(has_tubes and self.next_button.isEnabled())
+
+        combo_view = self.tube_selector_combo.view()
+        if combo_view is not None:
+            combo_view.setMinimumWidth(max(self.tube_selector_combo.sizeHint().width(), self.tube_selector_combo.minimumSizeHint().width()))
+
+        if current_tube is not None:
+            selected_index = self.tube_selector_combo.findData(current_tube)
+            if selected_index >= 0:
+                self.tube_selector_combo.setCurrentIndex(selected_index)
+
+        self.tube_selector_combo.blockSignals(False)
+
+    def update_analysis_tube_selector(self, *_args: object) -> None:
+        self.refresh_analysis_tube_selector(preserve_navigation_position=False)
+
+    def handle_analysis_tube_sort_changed(self, *_args: object) -> None:
+        self.refresh_analysis_tube_selector(preserve_navigation_position=False)
 
     def parse_tubes_size_text(self, text: str) -> tuple[int, int]:
         rows_text, columns_text = [part.strip() for part in text.split(',')]
@@ -1206,6 +1300,21 @@ class InteractivePlot(QMainWindow):
             QLabel#hintLabel {{
                 color: #516579;
             }}
+            QProgressBar#analysisProgressBar {{
+                border: 1px solid #c9d5e2;
+                border-radius: 6px;
+                background: rgba(238, 243, 248, 0.50);
+                color: #17324d;
+                text-align: center;
+                min-height: 22px;
+            }}
+            QProgressBar#analysisProgressBar::chunk {{
+                background: rgba(31, 111, 178, 0.50);
+                border-radius: 5px;
+            }}
+            QProgressBar#analysisProgressBar[completed="true"]::chunk {{
+                background: rgba(46, 139, 87, 0.50);
+            }}
         """)
 
     def create_tab_header(self, title: str, description: str) -> QWidget:
@@ -1467,6 +1576,16 @@ class InteractivePlot(QMainWindow):
         
     def start_brightness_series_analysis(self) -> None:
         analysis_start_brightness_series_analysis(self)
+
+    def set_analysis_progress_completed(self, completed: bool) -> None:
+        if not hasattr(self, 'analysis_progress_bar'):
+            return
+
+        self.analysis_progress_bar.setProperty("completed", bool(completed))
+        style = self.analysis_progress_bar.style()
+        style.unpolish(self.analysis_progress_bar)
+        style.polish(self.analysis_progress_bar)
+        self.analysis_progress_bar.update()
     
     def update_progress(self, value: int) -> None:
         self.analysis_progress_bar.setValue(max(0, min(100, value)))
@@ -1481,32 +1600,51 @@ class InteractivePlot(QMainWindow):
         analysis_enable_analysis_review_controls(self)
 
     def next_tube(self) -> None:
-        if self.current_tube < self.num_tubes - 1:
-            self.current_tube += 1
+        if not self.sorted_tube_indices:
+            self.sorted_tube_indices = self.get_sorted_tube_indices()
+
+        if self.sorted_tube_position < len(self.sorted_tube_indices) - 1:
+            self.sorted_tube_position += 1
+            self.current_tube = self.sorted_tube_indices[self.sorted_tube_position]
             self.refresh_current_tube_brightness_plot()
 
     def previous_tube(self) -> None:
-        if self.current_tube > 0:
-            self.current_tube -= 1
+        if not self.sorted_tube_indices:
+            self.sorted_tube_indices = self.get_sorted_tube_indices()
+
+        if self.sorted_tube_position > 0:
+            self.sorted_tube_position -= 1
+            self.current_tube = self.sorted_tube_indices[self.sorted_tube_position]
             self.refresh_current_tube_brightness_plot()
 
     def discard_current_tube_freezing_point(self) -> None:
         analysis_discard_current_tube_freezing_point(self)
 
-    def go_to_tube(self) -> None:
-        try:
-            tube_number = int(self.value_input.text())
-            if 0 <= tube_number < self.num_tubes:
-                self.current_tube = tube_number
-                self.refresh_current_tube_brightness_plot()
-            else:
-                self.append_log_message(
-                    f"Invalid tube number. Please enter a number between 0 and {self.num_tubes - 1}",
-                    self.LOG_TAB_ANALYZE,
-                    self.LOG_LEVEL_WARNING,
-                )
-        except ValueError:
-            self.append_log_message("Please enter a valid integer", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_WARNING)
+    def go_to_tube(self, *_args: object) -> None:
+        tube_number = None
+        if hasattr(self, 'tube_selector_combo'):
+            selected_data = self.tube_selector_combo.currentData()
+            if isinstance(selected_data, int):
+                tube_number = selected_data
+
+        if tube_number is None:
+            self.append_log_message("Select a tube from the list.", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_WARNING)
+            return
+
+        if 0 <= tube_number < self.num_tubes:
+            self.current_tube = tube_number
+            if not self.sorted_tube_indices:
+                self.sorted_tube_indices = self.get_sorted_tube_indices()
+            if tube_number in self.sorted_tube_indices:
+                self.sorted_tube_position = self.sorted_tube_indices.index(tube_number)
+            self.refresh_current_tube_brightness_plot()
+            return
+
+        self.append_log_message(
+            f"Invalid tube number. Please select a value between 0 and {self.num_tubes - 1}.",
+            self.LOG_TAB_ANALYZE,
+            self.LOG_LEVEL_WARNING,
+        )
             
     def refresh_current_tube_brightness_plot(self) -> None:
         analysis_refresh_current_tube_brightness_plot(self)

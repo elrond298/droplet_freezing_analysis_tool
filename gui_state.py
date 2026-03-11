@@ -49,6 +49,8 @@ class AnalysisState:
     freezing_temperatures: dict[int, dict[str, Any]] = field(default_factory=dict)
     num_tubes: int = 0
     current_tube: int = 0
+    sorted_tube_indices: list[int] = field(default_factory=list)
+    sorted_tube_position: int = 0
     current_tube_temperature: Any = None
     current_tube_brightness: Any = None
     current_tube_timestamps: Any = None

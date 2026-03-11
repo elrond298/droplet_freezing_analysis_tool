@@ -65,6 +65,7 @@ def load_freezing_events_data(window: InteractivePlot) -> None:
             )
 
             if hasattr(window, 'current_tube'):
+                window.refresh_analysis_tube_selector(preserve_navigation_position=False)
                 refresh_current_tube_brightness_plot(window)
 
         except Exception as error:
@@ -106,6 +107,7 @@ def start_brightness_series_analysis(window: InteractivePlot) -> None:
         return
 
     window.start_load_timeseries_button.setEnabled(False)
+    window.set_analysis_progress_completed(False)
     window.analysis_progress_bar.setValue(0)
     window.analysis_progress_bar.setFormat("Starting brightness-timeseries analysis for the selected inputs... %p%")
 
@@ -131,6 +133,7 @@ def start_brightness_series_analysis(window: InteractivePlot) -> None:
 def apply_analysis_results(window: InteractivePlot, temperature_recordings: Any, brightness_timeseries: Any) -> None:
     window.temperature_recordings = temperature_recordings
     window.brightness_timeseries = brightness_timeseries
+    window.set_analysis_progress_completed(True)
     window.analysis_progress_bar.setValue(100)
     window.analysis_progress_bar.setFormat("Analysis complete. Drag a span to adjust temperature below. (%p%)")
     window.freezing_temperatures, valid_freezing_points = compute_analysis_results(
@@ -139,6 +142,8 @@ def apply_analysis_results(window: InteractivePlot, temperature_recordings: Any,
     )
     window.num_tubes = len(window.inner_circles)
     window.current_tube = 0
+    window.sorted_tube_indices = window.get_sorted_tube_indices()
+    window.sorted_tube_position = 0
     window.append_log_message("Data loaded successfully!", window.LOG_TAB_ANALYZE, window.LOG_LEVEL_SUCCESS)
     window.append_log_message(
         f"Detected freezing points for {valid_freezing_points} out of {window.num_tubes} tubes",
@@ -146,6 +151,7 @@ def apply_analysis_results(window: InteractivePlot, temperature_recordings: Any,
         window.LOG_LEVEL_INFO,
     )
 
+    window.refresh_analysis_tube_selector(preserve_navigation_position=False)
     refresh_current_tube_brightness_plot(window)
     enable_analysis_review_controls(window)
 
@@ -154,10 +160,12 @@ def enable_analysis_review_controls(window: InteractivePlot) -> None:
     window.next_button.setEnabled(True)
     window.prev_button.setEnabled(True)
     window.discard_button.setEnabled(True)
-    window.value_input.setEnabled(True)
+    window.tube_sort_combo.setEnabled(True)
+    window.tube_selector_combo.setEnabled(True)
     window.send_to_inp_button.setEnabled(True)
     window.save_button_freezing_temperatures.setEnabled(True)
     window.load_button_freezing_temperatures.setEnabled(True)
+    window.refresh_analysis_tube_selector(preserve_navigation_position=False)
 
 
 def discard_current_tube_freezing_point(window: InteractivePlot) -> None:
@@ -187,6 +195,7 @@ def refresh_current_tube_brightness_plot(window: InteractivePlot) -> None:
             return
 
         if window.current_tube < len(window.inner_circles):
+            window.refresh_analysis_tube_selector(preserve_navigation_position=False)
             window.ax2.clear()
             (
                 window.current_tube_temperature,
@@ -291,6 +300,7 @@ def _render_freezing_point(window: InteractivePlot, freezing_data: dict[str, Any
             'temperature': freezing_temp,
             'timestamp': freezing_timestamp,
         }
+        window.refresh_analysis_tube_selector(preserve_navigation_position=True)
 
     if hasattr(window, 'freezing_point'):
         window.freezing_point.set_data([], [])
