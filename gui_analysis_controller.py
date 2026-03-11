@@ -25,6 +25,10 @@ if TYPE_CHECKING:
     from gui import InteractivePlot
 
 
+def _has_loaded_analysis_results(window: InteractivePlot) -> bool:
+    return bool(getattr(window, 'brightness_timeseries', None)) and bool(getattr(window, 'inner_circles', None))
+
+
 def save_freezing_events_data(window: InteractivePlot) -> None:
     default_filename = f"freezing_temperatures_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
     default_filepath = os.path.join(".", default_filename)
@@ -64,8 +68,7 @@ def load_freezing_events_data(window: InteractivePlot) -> None:
                 window.LOG_LEVEL_INFO,
             )
 
-            if hasattr(window, 'current_tube'):
-                window.refresh_analysis_tube_selector(preserve_navigation_position=False)
+            if _has_loaded_analysis_results(window):
                 refresh_current_tube_brightness_plot(window)
 
         except Exception as error:
@@ -117,17 +120,24 @@ def start_brightness_series_analysis(window: InteractivePlot) -> None:
     window.worker.moveToThread(window.thread)
     window.thread.started.connect(window.worker.run)
     window.worker.finished.connect(window.thread.quit)
+    window.worker.failed.connect(window.thread.quit)
     window.worker.finished.connect(window.worker.deleteLater)
+    window.worker.failed.connect(window.worker.deleteLater)
     window.thread.finished.connect(window.thread.deleteLater)
     window.worker.progress.connect(window.update_progress)
     window.worker.finished.connect(window.apply_analysis_results)
+    window.worker.failed.connect(lambda error_message: handle_analysis_failure(window, error_message))
     window.worker.log.connect(window.update_subprocess_log)
     window.thread.start()
 
     window.thread.finished.connect(lambda: window.start_load_timeseries_button.setEnabled(True))
-    window.thread.finished.connect(
-        lambda: window.append_log_message("Analysis completed!", window.LOG_TAB_ANALYZE, window.LOG_LEVEL_SUCCESS)
-    )
+
+
+def handle_analysis_failure(window: InteractivePlot, error_message: str) -> None:
+    window.set_analysis_progress_completed(False)
+    window.analysis_progress_bar.setValue(0)
+    window.analysis_progress_bar.setFormat("Analysis failed. Check the Analysis Log for details.")
+    window.append_log_message(error_message, window.LOG_TAB_ANALYZE, window.LOG_LEVEL_ERROR)
 
 
 def apply_analysis_results(window: InteractivePlot, temperature_recordings: Any, brightness_timeseries: Any) -> None:
@@ -151,9 +161,8 @@ def apply_analysis_results(window: InteractivePlot, temperature_recordings: Any,
         window.LOG_LEVEL_INFO,
     )
 
-    window.refresh_analysis_tube_selector(preserve_navigation_position=False)
-    refresh_current_tube_brightness_plot(window)
     enable_analysis_review_controls(window)
+    refresh_current_tube_brightness_plot(window)
 
 
 def enable_analysis_review_controls(window: InteractivePlot) -> None:
@@ -165,7 +174,6 @@ def enable_analysis_review_controls(window: InteractivePlot) -> None:
     window.send_to_inp_button.setEnabled(True)
     window.save_button_freezing_temperatures.setEnabled(True)
     window.load_button_freezing_temperatures.setEnabled(True)
-    window.refresh_analysis_tube_selector(preserve_navigation_position=False)
 
 
 def discard_current_tube_freezing_point(window: InteractivePlot) -> None:

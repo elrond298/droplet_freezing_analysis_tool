@@ -575,9 +575,6 @@ class InteractivePlot(QMainWindow):
 
         self.tube_selector_combo.blockSignals(False)
 
-    def update_analysis_tube_selector(self, *_args: object) -> None:
-        self.refresh_analysis_tube_selector(preserve_navigation_position=False)
-
     def handle_analysis_tube_sort_changed(self, *_args: object) -> None:
         self.refresh_analysis_tube_selector(preserve_navigation_position=False)
 

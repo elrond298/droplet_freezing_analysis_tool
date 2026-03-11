@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import traceback
 from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
@@ -23,6 +24,7 @@ class StreamToTextEdit(io.StringIO):
 
 class BrightnessWorker(QObject):
     finished = pyqtSignal(object, object)
+    failed = pyqtSignal(str)
     progress = pyqtSignal(int)
     log = pyqtSignal(str)
 
@@ -33,16 +35,20 @@ class BrightnessWorker(QObject):
         self.temperature_recording_file = temperature_recording_file
 
     def run(self) -> None:
-        temperature_recordings = load_temperature_timeseries(self.temperature_recording_file)
-        self.progress.emit(5)
+        try:
+            temperature_recordings = load_temperature_timeseries(self.temperature_recording_file)
+            self.progress.emit(5)
 
-        brightness_timeseries = load_brightness_timeseries(
-            self.image_directory,
-            self.tube_location_file,
-            temperature_recordings,
-            progress_callback=lambda value: self.progress.emit(value),
-            log_callback=lambda message: self.log.emit(message),
-        )
+            brightness_timeseries = load_brightness_timeseries(
+                self.image_directory,
+                self.tube_location_file,
+                temperature_recordings,
+                progress_callback=lambda value: self.progress.emit(value),
+                log_callback=lambda message: self.log.emit(message),
+            )
 
-        self.progress.emit(100)
-        self.finished.emit(temperature_recordings, brightness_timeseries)
+            self.progress.emit(100)
+            self.finished.emit(temperature_recordings, brightness_timeseries)
+        except Exception as error:
+            error_message = f"Analysis failed: {error}\n\n{traceback.format_exc()}"
+            self.failed.emit(error_message)
