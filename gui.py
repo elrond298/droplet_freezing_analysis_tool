@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import sys
 import os
 import html
+from typing import Any, Callable
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLineEdit, QSlider, QLabel, QSpinBox, QCheckBox,
                              QFileDialog, QTextEdit, QTabWidget, QFrame, QGroupBox, QFormLayout,
@@ -93,7 +96,7 @@ class InteractivePlot(QMainWindow):
     MIN_FONT_SIZE = 8
     MAX_FONT_SIZE = 24
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle('Droplet Freezing Assay Offline Analysis')
         self.initialize_state()
@@ -146,13 +149,13 @@ class InteractivePlot(QMainWindow):
         
         self.update_log_signal.connect(self.update_log)
 
-    def configure_console_redirect(self):
+    def configure_console_redirect(self) -> None:
         self.original_stdout = sys.stdout
         self.original_stderr = sys.stderr
         sys.stdout = StreamToTextEdit(self.update_log_signal, self.LOG_TAB_ALL, self.LOG_LEVEL_INFO)
         sys.stderr = StreamToTextEdit(self.update_log_signal, self.LOG_TAB_ALL, self.LOG_LEVEL_ERROR)
 
-    def initialize_state(self):
+    def initialize_state(self) -> None:
         default_font_size = self.get_default_font_size()
         self.selection_state = SelectionState(ui_font_size=default_font_size)
         self.image_prep_state = ImagePrepState()
@@ -160,270 +163,270 @@ class InteractivePlot(QMainWindow):
         self.analysis_state = AnalysisState()
 
     @property
-    def ui_font_size(self):
+    def ui_font_size(self) -> int:
         return self.selection_state.ui_font_size
 
     @ui_font_size.setter
-    def ui_font_size(self, value):
+    def ui_font_size(self, value: int) -> None:
         self.selection_state.ui_font_size = value
 
     @property
-    def sample_image_path(self):
+    def sample_image_path(self) -> str | None:
         return self.selection_state.sample_image_path
 
     @sample_image_path.setter
-    def sample_image_path(self, value):
+    def sample_image_path(self, value: str | None) -> None:
         self.selection_state.sample_image_path = value
 
     @property
-    def image_directory(self):
+    def image_directory(self) -> str | None:
         return self.selection_state.image_directory
 
     @image_directory.setter
-    def image_directory(self, value):
+    def image_directory(self, value: str | None) -> None:
         self.selection_state.image_directory = value
 
     @property
-    def temperature_recording_file(self):
+    def temperature_recording_file(self) -> str | None:
         return self.selection_state.temperature_recording_file
 
     @temperature_recording_file.setter
-    def temperature_recording_file(self, value):
+    def temperature_recording_file(self, value: str | None) -> None:
         self.selection_state.temperature_recording_file = value
 
     @property
-    def tube_location_file(self):
+    def tube_location_file(self) -> str | None:
         return self.selection_state.tube_location_file
 
     @tube_location_file.setter
-    def tube_location_file(self, value):
+    def tube_location_file(self, value: str | None) -> None:
         self.selection_state.tube_location_file = value
 
     @property
-    def detection_default_tubes_size(self):
+    def detection_default_tubes_size(self) -> tuple[int, int]:
         return self.selection_state.detection_default_tubes_size
 
     @detection_default_tubes_size.setter
-    def detection_default_tubes_size(self, value):
+    def detection_default_tubes_size(self, value: tuple[int, int]) -> None:
         self.selection_state.detection_default_tubes_size = value
 
     @property
-    def detection_default_rotation(self):
+    def detection_default_rotation(self) -> str:
         return self.selection_state.detection_default_rotation
 
     @detection_default_rotation.setter
-    def detection_default_rotation(self, value):
+    def detection_default_rotation(self, value: str) -> None:
         self.selection_state.detection_default_rotation = value
 
     @property
-    def detection_default_min_area(self):
+    def detection_default_min_area(self) -> int:
         return self.selection_state.detection_default_min_area
 
     @detection_default_min_area.setter
-    def detection_default_min_area(self, value):
+    def detection_default_min_area(self, value: int) -> None:
         self.selection_state.detection_default_min_area = value
 
     @property
-    def detection_default_circularity(self):
+    def detection_default_circularity(self) -> int:
         return self.selection_state.detection_default_circularity
 
     @detection_default_circularity.setter
-    def detection_default_circularity(self, value):
+    def detection_default_circularity(self, value: int) -> None:
         self.selection_state.detection_default_circularity = value
 
     @property
-    def restore_last_selected_inputs(self):
+    def restore_last_selected_inputs(self) -> bool:
         return self.selection_state.restore_last_selected_inputs
 
     @restore_last_selected_inputs.setter
-    def restore_last_selected_inputs(self, value):
+    def restore_last_selected_inputs(self, value: bool) -> None:
         self.selection_state.restore_last_selected_inputs = value
 
     @property
-    def auto_save_selected_inputs(self):
+    def auto_save_selected_inputs(self) -> bool:
         return self.selection_state.auto_save_selected_inputs
 
     @auto_save_selected_inputs.setter
-    def auto_save_selected_inputs(self, value):
+    def auto_save_selected_inputs(self, value: bool) -> None:
         self.selection_state.auto_save_selected_inputs = value
 
     @property
-    def auto_open_tube_detection_after_crop(self):
+    def auto_open_tube_detection_after_crop(self) -> bool:
         return self.selection_state.auto_open_tube_detection_after_crop
 
     @auto_open_tube_detection_after_crop.setter
-    def auto_open_tube_detection_after_crop(self, value):
+    def auto_open_tube_detection_after_crop(self, value: bool) -> None:
         self.selection_state.auto_open_tube_detection_after_crop = value
 
     @property
-    def show_hover_coordinates_in_status_bar(self):
+    def show_hover_coordinates_in_status_bar(self) -> bool:
         return self.selection_state.show_hover_coordinates_in_status_bar
 
     @show_hover_coordinates_in_status_bar.setter
-    def show_hover_coordinates_in_status_bar(self, value):
+    def show_hover_coordinates_in_status_bar(self, value: bool) -> None:
         self.selection_state.show_hover_coordinates_in_status_bar = value
 
     @property
-    def img(self):
+    def img(self) -> Any:
         return self.image_prep_state.img
 
     @img.setter
-    def img(self, value):
+    def img(self, value: Any) -> None:
         self.image_prep_state.img = value
 
     @property
-    def original_image(self):
+    def original_image(self) -> Any:
         return self.image_prep_state.original_image
 
     @original_image.setter
-    def original_image(self, value):
+    def original_image(self, value: Any) -> None:
         self.image_prep_state.original_image = value
 
     @property
-    def rotated_image(self):
+    def rotated_image(self) -> Any:
         return self.image_prep_state.rotated_image
 
     @rotated_image.setter
-    def rotated_image(self, value):
+    def rotated_image(self, value: Any) -> None:
         self.image_prep_state.rotated_image = value
 
     @property
-    def processed_image(self):
+    def processed_image(self) -> Any:
         return self.image_prep_state.processed_image
 
     @processed_image.setter
-    def processed_image(self, value):
+    def processed_image(self, value: Any) -> None:
         self.image_prep_state.processed_image = value
 
     @property
-    def crop_region(self):
+    def crop_region(self) -> tuple[int, int, int, int] | None:
         return self.image_prep_state.crop_region
 
     @crop_region.setter
-    def crop_region(self, value):
+    def crop_region(self, value: tuple[int, int, int, int] | None) -> None:
         self.image_prep_state.crop_region = value
 
     @property
-    def crop_selector(self):
+    def crop_selector(self) -> Any:
         return self.image_prep_state.crop_selector
 
     @crop_selector.setter
-    def crop_selector(self, value):
+    def crop_selector(self, value: Any) -> None:
         self.image_prep_state.crop_selector = value
 
     @property
-    def rotation_params(self):
+    def rotation_params(self) -> dict[str, Any] | None:
         return self.image_prep_state.rotation_params
 
     @rotation_params.setter
-    def rotation_params(self, value):
+    def rotation_params(self, value: dict[str, Any] | None) -> None:
         self.image_prep_state.rotation_params = value
 
     @property
-    def pcr_tubes(self):
+    def pcr_tubes(self) -> list[dict[str, Any]]:
         return self.detection_state.pcr_tubes
 
     @pcr_tubes.setter
-    def pcr_tubes(self, value):
+    def pcr_tubes(self, value: list[dict[str, Any]]) -> None:
         self.detection_state.pcr_tubes = value
 
     @property
-    def inferred_tubes(self):
+    def inferred_tubes(self) -> list[dict[str, Any]]:
         return self.detection_state.inferred_tubes
 
     @inferred_tubes.setter
-    def inferred_tubes(self, value):
+    def inferred_tubes(self, value: list[dict[str, Any]]) -> None:
         self.detection_state.inferred_tubes = value
 
     @property
-    def all_tubes(self):
+    def all_tubes(self) -> list[dict[str, Any]]:
         return self.detection_state.all_tubes
 
     @all_tubes.setter
-    def all_tubes(self, value):
+    def all_tubes(self, value: list[dict[str, Any]]) -> None:
         self.detection_state.all_tubes = value
 
     @property
-    def inner_circles(self):
+    def inner_circles(self) -> list[dict[str, Any]]:
         return self.detection_state.inner_circles
 
     @inner_circles.setter
-    def inner_circles(self, value):
+    def inner_circles(self, value: list[dict[str, Any]]) -> None:
         self.detection_state.inner_circles = value
 
     @property
-    def tubes_size(self):
+    def tubes_size(self) -> tuple[int, int]:
         return self.detection_state.tubes_size
 
     @tubes_size.setter
-    def tubes_size(self, value):
+    def tubes_size(self, value: tuple[int, int]) -> None:
         self.detection_state.tubes_size = value
 
     @property
-    def temperature_recordings(self):
+    def temperature_recordings(self) -> Any:
         return self.analysis_state.temperature_recordings
 
     @temperature_recordings.setter
-    def temperature_recordings(self, value):
+    def temperature_recordings(self, value: Any) -> None:
         self.analysis_state.temperature_recordings = value
 
     @property
-    def brightness_timeseries(self):
+    def brightness_timeseries(self) -> Any:
         return self.analysis_state.brightness_timeseries
 
     @brightness_timeseries.setter
-    def brightness_timeseries(self, value):
+    def brightness_timeseries(self, value: Any) -> None:
         self.analysis_state.brightness_timeseries = value
 
     @property
-    def freezing_temperatures(self):
+    def freezing_temperatures(self) -> dict[int, dict[str, Any]]:
         return self.analysis_state.freezing_temperatures
 
     @freezing_temperatures.setter
-    def freezing_temperatures(self, value):
+    def freezing_temperatures(self, value: dict[int, dict[str, Any]]) -> None:
         self.analysis_state.freezing_temperatures = value
 
     @property
-    def num_tubes(self):
+    def num_tubes(self) -> int:
         return self.analysis_state.num_tubes
 
     @num_tubes.setter
-    def num_tubes(self, value):
+    def num_tubes(self, value: int) -> None:
         self.analysis_state.num_tubes = value
 
     @property
-    def current_tube(self):
+    def current_tube(self) -> int:
         return self.analysis_state.current_tube
 
     @current_tube.setter
-    def current_tube(self, value):
+    def current_tube(self, value: int) -> None:
         self.analysis_state.current_tube = value
 
     @property
-    def current_tube_temperature(self):
+    def current_tube_temperature(self) -> Any:
         return self.analysis_state.current_tube_temperature
 
     @current_tube_temperature.setter
-    def current_tube_temperature(self, value):
+    def current_tube_temperature(self, value: Any) -> None:
         self.analysis_state.current_tube_temperature = value
 
     @property
-    def current_tube_brightness(self):
+    def current_tube_brightness(self) -> Any:
         return self.analysis_state.current_tube_brightness
 
     @current_tube_brightness.setter
-    def current_tube_brightness(self, value):
+    def current_tube_brightness(self, value: Any) -> None:
         self.analysis_state.current_tube_brightness = value
 
     @property
-    def current_tube_timestamps(self):
+    def current_tube_timestamps(self) -> Any:
         return self.analysis_state.current_tube_timestamps
 
     @current_tube_timestamps.setter
-    def current_tube_timestamps(self, value):
+    def current_tube_timestamps(self, value: Any) -> None:
         self.analysis_state.current_tube_timestamps = value
 
-    def get_default_font_size(self):
+    def get_default_font_size(self) -> int:
         app = QApplication.instance()
         if app is not None:
             point_size = app.font().pointSize()
@@ -431,10 +434,10 @@ class InteractivePlot(QMainWindow):
                 return point_size
         return self.DEFAULT_FONT_SIZE
 
-    def format_tubes_size(self, tubes_size):
+    def format_tubes_size(self, tubes_size: tuple[int, int]) -> str:
         return f"{tubes_size[0]}, {tubes_size[1]}"
 
-    def parse_tubes_size_text(self, text):
+    def parse_tubes_size_text(self, text: str) -> tuple[int, int]:
         rows_text, columns_text = [part.strip() for part in text.split(',')]
         rows = int(rows_text)
         columns = int(columns_text)
@@ -442,7 +445,7 @@ class InteractivePlot(QMainWindow):
             raise ValueError()
         return rows, columns
 
-    def refresh_settings_controls(self):
+    def refresh_settings_controls(self) -> None:
         if hasattr(self, 'settings_tubes_size_input'):
             self.settings_tubes_size_input.blockSignals(True)
             self.settings_tubes_size_input.setText(self.format_tubes_size(self.detection_default_tubes_size))
@@ -483,7 +486,7 @@ class InteractivePlot(QMainWindow):
             self.show_hover_coordinates_checkbox.setChecked(self.show_hover_coordinates_in_status_bar)
             self.show_hover_coordinates_checkbox.blockSignals(False)
 
-    def apply_detection_defaults_to_locate_controls(self, schedule=False):
+    def apply_detection_defaults_to_locate_controls(self, schedule: bool = False) -> None:
         self.tubes_size = self.detection_default_tubes_size
 
         if hasattr(self, 'tubes_size_input'):
@@ -513,7 +516,7 @@ class InteractivePlot(QMainWindow):
         if schedule:
             self.schedule_update()
 
-    def create_detection_defaults_group(self):
+    def create_detection_defaults_group(self) -> QGroupBox:
         detection_group = QGroupBox("Detection Defaults")
         layout = QFormLayout(detection_group)
         layout.setContentsMargins(12, 10, 12, 10)
@@ -546,7 +549,7 @@ class InteractivePlot(QMainWindow):
 
         return detection_group
 
-    def create_session_behavior_group(self):
+    def create_session_behavior_group(self) -> QGroupBox:
         session_group = QGroupBox("Session And File Behavior")
         layout = QVBoxLayout(session_group)
         layout.setContentsMargins(12, 10, 12, 10)
@@ -569,7 +572,7 @@ class InteractivePlot(QMainWindow):
 
         return session_group
 
-    def create_plot_behavior_group(self):
+    def create_plot_behavior_group(self) -> QGroupBox:
         plot_group = QGroupBox("Plot And Status Bar")
         layout = QVBoxLayout(plot_group)
         layout.setContentsMargins(12, 10, 12, 10)
@@ -587,7 +590,7 @@ class InteractivePlot(QMainWindow):
 
         return plot_group
 
-    def update_detection_default_tubes_size(self):
+    def update_detection_default_tubes_size(self) -> None:
         text = self.settings_tubes_size_input.text().strip()
         try:
             self.detection_default_tubes_size = self.parse_tubes_size_text(text)
@@ -606,7 +609,7 @@ class InteractivePlot(QMainWindow):
                 self.LOG_LEVEL_WARNING,
             )
 
-    def update_detection_default_rotation(self):
+    def update_detection_default_rotation(self) -> None:
         rotation = self.settings_rotation_input.text().strip() or 'auto'
         self.detection_default_rotation = rotation
         self.apply_detection_defaults_to_locate_controls(schedule=True)
@@ -618,35 +621,35 @@ class InteractivePlot(QMainWindow):
             self.LOG_LEVEL_INFO,
         )
 
-    def update_detection_default_min_area(self, value):
+    def update_detection_default_min_area(self, value: int) -> None:
         self.detection_default_min_area = int(value)
         self.apply_detection_defaults_to_locate_controls(schedule=True)
         self.save_selection_cache()
 
-    def update_detection_default_circularity(self, value):
+    def update_detection_default_circularity(self, value: int) -> None:
         self.detection_default_circularity = int(value)
         self.apply_detection_defaults_to_locate_controls(schedule=True)
         self.save_selection_cache()
 
-    def update_restore_last_selected_inputs(self, checked):
+    def update_restore_last_selected_inputs(self, checked: bool) -> None:
         self.restore_last_selected_inputs = bool(checked)
         self.save_selection_cache()
 
-    def update_auto_save_selected_inputs(self, checked):
+    def update_auto_save_selected_inputs(self, checked: bool) -> None:
         self.auto_save_selected_inputs = bool(checked)
         self.save_selection_cache()
 
-    def update_auto_open_tube_detection_after_crop(self, checked):
+    def update_auto_open_tube_detection_after_crop(self, checked: bool) -> None:
         self.auto_open_tube_detection_after_crop = bool(checked)
         self.save_selection_cache()
 
-    def update_show_hover_coordinates_in_status_bar(self, checked):
+    def update_show_hover_coordinates_in_status_bar(self, checked: bool) -> None:
         self.show_hover_coordinates_in_status_bar = bool(checked)
         if not self.show_hover_coordinates_in_status_bar:
             self.statusBar().clearMessage()
         self.save_selection_cache()
 
-    def create_display_controls(self):
+    def create_display_controls(self) -> QGroupBox:
         display_group = QGroupBox("Display")
         layout = QHBoxLayout(display_group)
         layout.setContentsMargins(12, 10, 12, 10)
@@ -666,7 +669,7 @@ class InteractivePlot(QMainWindow):
 
         return display_group
 
-    def create_shortcuts_summary_group(self):
+    def create_shortcuts_summary_group(self) -> QGroupBox:
         shortcuts_group = QGroupBox("Keyboard Shortcuts")
         layout = QVBoxLayout(shortcuts_group)
         layout.setSpacing(8)
@@ -689,7 +692,7 @@ class InteractivePlot(QMainWindow):
 
         return shortcuts_group
 
-    def configure_shortcuts(self):
+    def configure_shortcuts(self) -> None:
         self.shortcuts = []
 
         shortcut_definitions = (
@@ -709,23 +712,23 @@ class InteractivePlot(QMainWindow):
             shortcut.activated.connect(callback)
             self.shortcuts.append(shortcut)
 
-    def increase_ui_font_size(self):
+    def increase_ui_font_size(self) -> None:
         self.set_ui_font_size(self.ui_font_size + 1)
 
-    def decrease_ui_font_size(self):
+    def decrease_ui_font_size(self) -> None:
         self.set_ui_font_size(self.ui_font_size - 1)
 
-    def reset_ui_font_size(self):
+    def reset_ui_font_size(self) -> None:
         self.set_ui_font_size(self.get_default_font_size())
 
-    def open_settings_tab(self):
+    def open_settings_tab(self) -> None:
         self.select_tab_by_index(3)
 
-    def select_tab_by_index(self, index):
+    def select_tab_by_index(self, index: int) -> None:
         if 0 <= index < self.tab_widget.count():
             self.tab_widget.setCurrentIndex(index)
 
-    def set_ui_font_size(self, font_size, persist=True):
+    def set_ui_font_size(self, font_size: int, persist: bool = True) -> None:
         font_size = max(self.MIN_FONT_SIZE, min(self.MAX_FONT_SIZE, int(font_size)))
         self.ui_font_size = font_size
 
@@ -748,7 +751,7 @@ class InteractivePlot(QMainWindow):
         if persist and hasattr(self, 'selection_cache_path'):
             self.save_selection_cache()
 
-    def configure_window_for_screen(self):
+    def configure_window_for_screen(self) -> None:
         screen = QApplication.primaryScreen()
         if screen is None:
             self.setGeometry(100, 100, 1400, 800)
@@ -772,7 +775,7 @@ class InteractivePlot(QMainWindow):
         self.setGeometry(x_pos, y_pos, target_width, target_height)
         self.setMinimumSize(1100, 720)
 
-    def create_scrollable_panel(self, content_widget):
+    def create_scrollable_panel(self, content_widget: QWidget) -> QScrollArea:
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -780,7 +783,7 @@ class InteractivePlot(QMainWindow):
         scroll_area.setWidget(content_widget)
         return scroll_area
 
-    def configure_figure_padding(self, figure, image_mode=False, reserve_title_space=False):
+    def configure_figure_padding(self, figure: Any, image_mode: bool = False, reserve_title_space: bool = False) -> None:
         if image_mode:
             # top_padding = 0.97 if reserve_title_space else 0.99
             top_padding = 0.97  # consistently reserve space across tabs
@@ -788,7 +791,7 @@ class InteractivePlot(QMainWindow):
         else:
             figure.subplots_adjust(left=0.10, right=0.98, top=0.94, bottom=0.12)
 
-    def show_plot_error(self, axes, title, error_msg):
+    def show_plot_error(self, axes: Any, title: str, error_msg: str) -> None:
         axes.clear()
         axes.set_title(title, pad=14)
         axes.set_xticks([])
@@ -808,7 +811,7 @@ class InteractivePlot(QMainWindow):
             bbox=dict(facecolor='red', alpha=0.12, edgecolor='red', boxstyle='round,pad=0.5')
         )
 
-    def show_analysis_plot_instructions(self):
+    def show_analysis_plot_instructions(self) -> None:
         title_font_size = self.ui_font_size + 3
         body_font_size = max(self.ui_font_size, self.MIN_FONT_SIZE)
 
@@ -845,26 +848,26 @@ class InteractivePlot(QMainWindow):
         )
         self.canvas2.draw()
         
-    def get_log_widget(self, tab_number):
+    def get_log_widget(self, tab_number: int) -> QTextEdit | None:
         return logging_get_log_widget(self, tab_number)
 
-    def format_log_message(self, message, level):
+    def format_log_message(self, message: object, level: str) -> str:
         return logging_format_log_message(self, message, level)
 
-    def write_log_entry(self, widget, formatted_message):
+    def write_log_entry(self, widget: QTextEdit, formatted_message: str) -> None:
         logging_write_log_entry(widget, formatted_message)
 
-    def update_log(self, message, tab_number, level):
+    def update_log(self, message: object, tab_number: int, level: str) -> None:
         self.append_log_message(message, tab_number, level)
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: Any) -> None:
         if getattr(self, 'original_stdout', None) is not None:
             sys.stdout = self.original_stdout
         if getattr(self, 'original_stderr', None) is not None:
             sys.stderr = self.original_stderr
         super().closeEvent(event)
 
-    def apply_styles(self):
+    def apply_styles(self) -> None:
         base_font_size = self.ui_font_size
         tab_header_title_size = base_font_size + 6
         self.setStyleSheet(f"""
@@ -948,7 +951,7 @@ class InteractivePlot(QMainWindow):
             }}
         """)
 
-    def create_tab_header(self, title, description):
+    def create_tab_header(self, title: str, description: str) -> QWidget:
         header = QWidget()
         layout = QVBoxLayout(header)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -965,17 +968,17 @@ class InteractivePlot(QMainWindow):
         layout.addWidget(description_label)
         return header
 
-    def create_status_label(self, text):
+    def create_status_label(self, text: str) -> QLabel:
         label = QLabel(text)
         label.setObjectName("statusLabel")
         label.setWordWrap(True)
         return label
 
-    def format_selected_path(self, prefix, path):
+    def format_selected_path(self, prefix: str, path: str | None) -> str:
         selected_name = os.path.basename(path) if path else "Not selected"
         return f"{prefix}: {selected_name}"
 
-    def format_highlighted_selected_path(self, prefix, path):
+    def format_highlighted_selected_path(self, prefix: str, path: str | None) -> str:
         if path:
             selected_name = html.escape(os.path.basename(path))
             return (
@@ -988,10 +991,10 @@ class InteractivePlot(QMainWindow):
             f"<span style=\"color:#7a8694;\">Not selected</span>"
         )
 
-    def append_log_message(self, message, tab_number, level):
+    def append_log_message(self, message: object, tab_number: int, level: str) -> None:
         logging_append_log_message(self, message, tab_number, level)
 
-    def validate_file_path(self, path, label, tab_number):
+    def validate_file_path(self, path: str | None, label: str, tab_number: int) -> bool:
         if not path:
             self.append_log_message(f"{label} is not selected.", tab_number, self.LOG_LEVEL_WARNING)
             return False
@@ -1002,7 +1005,7 @@ class InteractivePlot(QMainWindow):
 
         return True
 
-    def validate_directory_path(self, path, label, tab_number):
+    def validate_directory_path(self, path: str | None, label: str, tab_number: int) -> bool:
         if not path:
             self.append_log_message(f"{label} is not selected.", tab_number, self.LOG_LEVEL_WARNING)
             return False
@@ -1013,7 +1016,7 @@ class InteractivePlot(QMainWindow):
 
         return True
 
-    def load_image_from_path(self, path, label, tab_number):
+    def load_image_from_path(self, path: str | None, label: str, tab_number: int) -> Any | None:
         if not self.validate_file_path(path, label, tab_number):
             return None
 
@@ -1024,7 +1027,7 @@ class InteractivePlot(QMainWindow):
 
         return image
 
-    def validate_analysis_inputs(self):
+    def validate_analysis_inputs(self) -> bool:
         checks = (
             self.validate_directory_path(self.image_directory, "Image directory", self.LOG_TAB_ANALYZE),
             self.validate_file_path(self.temperature_recording_file, "Temperature recording file", self.LOG_TAB_ANALYZE),
@@ -1032,22 +1035,22 @@ class InteractivePlot(QMainWindow):
         )
         return all(checks)
 
-    def refresh_image_path_labels(self):
+    def refresh_image_path_labels(self) -> None:
         cache_refresh_image_path_labels(self)
 
-    def refresh_analysis_input_labels(self):
+    def refresh_analysis_input_labels(self) -> None:
         cache_refresh_analysis_input_labels(self)
 
-    def load_selection_cache(self):
+    def load_selection_cache(self) -> dict[str, Any]:
         return cache_load_selection_cache(self)
 
-    def save_selection_cache(self):
+    def save_selection_cache(self) -> None:
         cache_save_selection_cache(self)
 
-    def restore_cached_selections(self):
+    def restore_cached_selections(self) -> None:
         cache_restore_cached_selections(self)
 
-    def create_selection_group(self, title, button_text, selection_method):
+    def create_selection_group(self, title: str, button_text: str, selection_method: Callable[[], None]) -> tuple[QGroupBox, QLabel]:
         group = QGroupBox(title)
         layout = QVBoxLayout()
         layout.setSpacing(8)
@@ -1065,19 +1068,19 @@ class InteractivePlot(QMainWindow):
         group.setLayout(layout)
         return group, label
 
-    def setup_tube_locating_tab(self):
+    def setup_tube_locating_tab(self) -> None:
         build_tube_locating_tab(self)
 
-    def setup_freezing_detection_tab(self):
+    def setup_freezing_detection_tab(self) -> None:
         build_freezing_detection_tab(self)
     
-    def setup_image_cropping_tab(self):
+    def setup_image_cropping_tab(self) -> None:
         build_image_cropping_tab(self)
 
-    def setup_settings_tab(self):
+    def setup_settings_tab(self) -> None:
         build_settings_tab(self)
 
-    def create_crop_selector(self):
+    def create_crop_selector(self) -> None:
         if self.crop_selector is not None:
             self.crop_selector.set_active(False)
 
@@ -1093,7 +1096,7 @@ class InteractivePlot(QMainWindow):
         )
 
     
-    def select_sample_image_path(self):
+    def select_sample_image_path(self) -> None:
         file, _ = QFileDialog.getOpenFileName(self, "Select an Image")
         if file:
             self.sample_image_path = file
@@ -1103,7 +1106,7 @@ class InteractivePlot(QMainWindow):
             self.append_log_message(f"Selected image: {file}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
             self.load_selected_image_into_preparation_view()
 
-    def select_image_directory(self):
+    def select_image_directory(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Select Image Directory")
         if folder:
             self.image_directory = folder
@@ -1112,7 +1115,7 @@ class InteractivePlot(QMainWindow):
                 self.save_selection_cache()
             self.append_log_message(f"Image directory selected: {folder}", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
 
-    def select_temperature_recording(self):
+    def select_temperature_recording(self) -> None:
         file, _ = QFileDialog.getOpenFileName(self, "Select Temperature Recording")
         if file:
             self.temperature_recording_file = file
@@ -1121,7 +1124,7 @@ class InteractivePlot(QMainWindow):
                 self.save_selection_cache()
             self.append_log_message(f"Temperature recording selected: {file}", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
 
-    def select_tube_locations(self):
+    def select_tube_locations(self) -> None:
         file, _ = QFileDialog.getOpenFileName(self, "Select Tube Locations")
         if file:
             self.tube_location_file = file
@@ -1130,27 +1133,27 @@ class InteractivePlot(QMainWindow):
                 self.save_selection_cache()
             self.append_log_message(f"Tube locations selected: {file}", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
 
-    def run_tube_detection_and_render_plot(self):
+    def run_tube_detection_and_render_plot(self) -> None:
         detection_run_tube_detection_and_render_plot(self)
 
-    def handle_tube_detection_plot_click(self, event):
+    def handle_tube_detection_plot_click(self, event: Any) -> None:
         detection_handle_tube_detection_plot_click(self, event)
 
-    def redraw_manual_tube_detection_plot(self):
+    def redraw_manual_tube_detection_plot(self) -> None:
         detection_redraw_manual_tube_detection_plot(self)
 
-    def reset_tube_detection_view(self):
+    def reset_tube_detection_view(self) -> None:
         detection_reset_tube_detection_view(self)
 
-    def schedule_update(self):
+    def schedule_update(self) -> None:
         self.update_timer.start(300)  # 300ms 延迟
 
-    def update_min_area(self, value):
+    def update_min_area(self, value: int) -> None:
         self.min_area_label.setText(f"Min Area: {value}")
         self.schedule_update()
         self.append_log_message(f"Min area updated to {value}", self.LOG_TAB_LOCATE, self.LOG_LEVEL_DEBUG)
 
-    def update_circularity(self, value):
+    def update_circularity(self, value: int) -> None:
         self.circularity_label.setText(f"Circularity: {value/100:.2f}")
         self.schedule_update()
         self.append_log_message(
@@ -1159,7 +1162,7 @@ class InteractivePlot(QMainWindow):
             self.LOG_LEVEL_DEBUG,
         )
 
-    def update_tubes_size(self, text):
+    def update_tubes_size(self, text: str) -> None:
         try:
             rows, columns = self.parse_tubes_size_text(text)
             self.tubes_size = (rows, columns)
@@ -1176,50 +1179,50 @@ class InteractivePlot(QMainWindow):
                 self.LOG_LEVEL_WARNING,
             )
 
-    def normalize_inner_circles(self, circles, default_method="loaded"):
+    def normalize_inner_circles(self, circles: list[dict[str, Any]], default_method: str = "loaded") -> list[dict[str, Any]]:
         return normalize_inner_circles(circles, default_method=default_method)
 
-    def restore_circle_to_original_image(self, circle):
+    def restore_circle_to_original_image(self, circle: dict[str, Any]) -> dict[str, Any]:
         return restore_circle_to_original_image(circle, self.crop_region, self.rotation_params)
 
-    def save_detected_inner_circles(self):
+    def save_detected_inner_circles(self) -> None:
         detection_save_detected_inner_circles(self)
 
-    def save_freezing_events_data(self):
+    def save_freezing_events_data(self) -> None:
         analysis_save_freezing_events_data(self)
             
-    def load_freezing_events_data(self):
+    def load_freezing_events_data(self) -> None:
         analysis_load_freezing_events_data(self)
         
-    def start_brightness_series_analysis(self):
+    def start_brightness_series_analysis(self) -> None:
         analysis_start_brightness_series_analysis(self)
     
-    def update_progress(self, value):
+    def update_progress(self, value: int) -> None:
         self.analysis_progress_bar.setValue(max(0, min(100, value)))
 
-    def apply_analysis_results(self, temperature_recordings, brightness_timeseries):
+    def apply_analysis_results(self, temperature_recordings: Any, brightness_timeseries: Any) -> None:
         analysis_apply_analysis_results(self, temperature_recordings, brightness_timeseries)
 
-    def update_subprocess_log(self, message):
+    def update_subprocess_log(self, message: str) -> None:
         self.update_log_signal.emit(message, self.LOG_TAB_ANALYZE, self.LOG_LEVEL_INFO)
         
-    def enable_analysis_review_controls(self):
+    def enable_analysis_review_controls(self) -> None:
         analysis_enable_analysis_review_controls(self)
 
-    def next_tube(self):
+    def next_tube(self) -> None:
         if self.current_tube < self.num_tubes - 1:
             self.current_tube += 1
             self.refresh_current_tube_brightness_plot()
 
-    def previous_tube(self):
+    def previous_tube(self) -> None:
         if self.current_tube > 0:
             self.current_tube -= 1
             self.refresh_current_tube_brightness_plot()
 
-    def discard_current_tube_freezing_point(self):
+    def discard_current_tube_freezing_point(self) -> None:
         analysis_discard_current_tube_freezing_point(self)
 
-    def go_to_tube(self):
+    def go_to_tube(self) -> None:
         try:
             tube_number = int(self.value_input.text())
             if 0 <= tube_number < self.num_tubes:
@@ -1234,34 +1237,34 @@ class InteractivePlot(QMainWindow):
         except ValueError:
             self.append_log_message("Please enter a valid integer", self.LOG_TAB_ANALYZE, self.LOG_LEVEL_WARNING)
             
-    def refresh_current_tube_brightness_plot(self):
+    def refresh_current_tube_brightness_plot(self) -> None:
         analysis_refresh_current_tube_brightness_plot(self)
 
-    def refresh_current_tube_freezing_marker(self, xmin=None, xmax=None):
+    def refresh_current_tube_freezing_marker(self, xmin: float | None = None, xmax: float | None = None) -> None:
         analysis_refresh_current_tube_freezing_marker(self, xmin=xmin, xmax=xmax)
 
-    def on_brightness_span_select(self, xmin, xmax):
+    def on_brightness_span_select(self, xmin: float, xmax: float) -> None:
         self.refresh_current_tube_freezing_marker(xmin, xmax)
 
-    def load_selected_image_into_preparation_view(self):
+    def load_selected_image_into_preparation_view(self) -> None:
         image_load_selected_image_into_preparation_view(self)
 
-    def apply_preparation_image_rotation(self):
+    def apply_preparation_image_rotation(self) -> None:
         image_apply_preparation_image_rotation(self)
 
-    def restore_original_preparation_image(self):
+    def restore_original_preparation_image(self) -> None:
         image_restore_original_preparation_image(self)
 
-    def on_crop_select(self, eclick, erelease):
+    def on_crop_select(self, eclick: Any, erelease: Any) -> None:
         x1, y1 = int(eclick.xdata), int(eclick.ydata)
         x2, y2 = int(erelease.xdata), int(erelease.ydata)
         self.crop_region = (min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1))
         self.append_log_message(f"Crop region set to: {self.crop_region}", self.LOG_TAB_PREPARE, self.LOG_LEVEL_INFO)
 
-    def apply_selected_crop_to_tube_detection(self):
+    def apply_selected_crop_to_tube_detection(self) -> None:
         image_apply_selected_crop_to_tube_detection(self)
 
-    def load_analysis_inner_circle_locations(self):
+    def load_analysis_inner_circle_locations(self) -> bool:
         return analysis_load_analysis_inner_circle_locations(self)
 
 

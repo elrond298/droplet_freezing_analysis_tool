@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import pickle
+from typing import Any
 
 import cv2
 import numpy as np
@@ -8,7 +11,7 @@ from freezing_detection import get_freezing_temperature
 from tube_detection import detect_inner_circles, infer_missing_tubes, locate_pcr_tubes
 
 
-def run_tube_detection(image, min_area, circularity_threshold, tubes_size, rotation):
+def run_tube_detection(image: Any, min_area: int, circularity_threshold: float, tubes_size: tuple[int, int], rotation: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     pcr_tubes, _ = locate_pcr_tubes(image, min_area, circularity_threshold)
     inferred_tubes = infer_missing_tubes(
         pcr_tubes,
@@ -21,7 +24,7 @@ def run_tube_detection(image, min_area, circularity_threshold, tubes_size, rotat
     return pcr_tubes, inferred_tubes, all_tubes, inner_circles
 
 
-def render_tube_detection_overlay(image, all_tubes, inner_circles):
+def render_tube_detection_overlay(image: Any, all_tubes: list[dict[str, Any]], inner_circles: list[dict[str, Any]]) -> Any:
     img_with_tubes = image.copy()
 
     for tube, inner_circle in zip(all_tubes, inner_circles):
@@ -40,7 +43,7 @@ def render_tube_detection_overlay(image, all_tubes, inner_circles):
     return img_with_tubes
 
 
-def render_manual_detection_overlay(image, all_tubes, inner_circles):
+def render_manual_detection_overlay(image: Any, all_tubes: list[dict[str, Any]], inner_circles: list[dict[str, Any]]) -> Any:
     img_with_tubes = image.copy()
 
     for tube in all_tubes:
@@ -53,7 +56,7 @@ def render_manual_detection_overlay(image, all_tubes, inner_circles):
     return img_with_tubes
 
 
-def normalize_inner_circles(circles, default_method="loaded"):
+def normalize_inner_circles(circles: list[dict[str, Any]], default_method: str = "loaded") -> list[dict[str, Any]]:
     normalized_circles = []
     for circle in circles:
         normalized_circle = dict(circle)
@@ -65,7 +68,7 @@ def normalize_inner_circles(circles, default_method="loaded"):
     return normalized_circles
 
 
-def restore_circle_to_original_image(circle, crop_region, rotation_params):
+def restore_circle_to_original_image(circle: dict[str, Any], crop_region: tuple[int, int, int, int] | None, rotation_params: dict[str, Any] | None) -> dict[str, Any]:
     restored_circle = dict(circle)
     restored_circle['x'] = int(round(restored_circle['x']))
     restored_circle['y'] = int(round(restored_circle['y']))
@@ -88,12 +91,12 @@ def restore_circle_to_original_image(circle, crop_region, rotation_params):
     return restored_circle
 
 
-def dump_inner_circles(file_path, circles):
+def dump_inner_circles(file_path: str, circles: list[dict[str, Any]]) -> None:
     with open(file_path, 'wb') as file_handle:
         pickle.dump(circles, file_handle)
 
 
-def serialize_freezing_temperatures(freezing_temperatures):
+def serialize_freezing_temperatures(freezing_temperatures: dict[int, dict[str, Any]]) -> list[str]:
     lines = ["Tube,Temperature,Timestamp\n"]
 
     for tube, data in freezing_temperatures.items():
@@ -108,7 +111,7 @@ def serialize_freezing_temperatures(freezing_temperatures):
     return lines
 
 
-def deserialize_freezing_temperatures(file_path):
+def deserialize_freezing_temperatures(file_path: str) -> tuple[dict[int, dict[str, Any]], list[tuple[str, Exception]]]:
     freezing_temperatures = {}
     errors = []
 
@@ -134,7 +137,7 @@ def deserialize_freezing_temperatures(file_path):
     return freezing_temperatures, errors
 
 
-def compute_analysis_results(temperature_recordings, brightness_timeseries):
+def compute_analysis_results(temperature_recordings: Any, brightness_timeseries: Any) -> tuple[dict[int, dict[str, Any]], int]:
     freezing_temperatures = get_freezing_temperature(temperature_recordings, brightness_timeseries)
     valid_freezing_points = sum(
         1
@@ -144,7 +147,7 @@ def compute_analysis_results(temperature_recordings, brightness_timeseries):
     return freezing_temperatures, valid_freezing_points
 
 
-def build_current_tube_series(temperature_recordings, brightness_timeseries, current_tube):
+def build_current_tube_series(temperature_recordings: Any, brightness_timeseries: Any, current_tube: int) -> tuple[Any, Any, Any]:
     common_timestamps = np.intersect1d(
         temperature_recordings['timestamp'],
         brightness_timeseries['timestamp'],
@@ -159,7 +162,7 @@ def build_current_tube_series(temperature_recordings, brightness_timeseries, cur
     return current_tube_temperature, current_tube_brightness, current_tube_timestamps
 
 
-def resolve_existing_freezing_point(freezing_temperatures, current_tube, timestamps, brightness):
+def resolve_existing_freezing_point(freezing_temperatures: dict[int, dict[str, Any]], current_tube: int, timestamps: Any, brightness: Any) -> dict[str, Any] | None:
     if current_tube not in freezing_temperatures:
         return None
 
@@ -178,7 +181,7 @@ def resolve_existing_freezing_point(freezing_temperatures, current_tube, timesta
     }
 
 
-def recalculate_freezing_point_in_range(temperature, brightness, timestamps, xmin, xmax):
+def recalculate_freezing_point_in_range(temperature: Any, brightness: Any, timestamps: Any, xmin: float, xmax: float) -> dict[str, Any] | None:
     mask = (temperature >= xmin) & (temperature <= xmax)
     if np.sum(mask) < 3:
         return None
@@ -198,7 +201,7 @@ def recalculate_freezing_point_in_range(temperature, brightness, timestamps, xmi
     }
 
 
-def discard_freezing_point(brightness, timestamps):
+def discard_freezing_point(brightness: Any, timestamps: Any) -> dict[str, None]:
     return {
         'temperature': None,
         'timestamp': None,
@@ -206,7 +209,7 @@ def discard_freezing_point(brightness, timestamps):
     }
 
 
-def rotate_image(image, rotation_angle):
+def rotate_image(image: Any, rotation_angle: float) -> tuple[Any, dict[str, Any]]:
     height, width = image.shape[:2]
     center = (width / 2, height / 2)
     rotation_matrix = cv2.getRotationMatrix2D(center, rotation_angle, 1.0)
@@ -224,11 +227,11 @@ def rotate_image(image, rotation_angle):
     return rotated_image, rotation_params
 
 
-def crop_rotated_image(rotated_image, crop_region):
+def crop_rotated_image(rotated_image: Any, crop_region: tuple[int, int, int, int]) -> Any:
     x_pos, y_pos, width, height = crop_region
     return rotated_image[y_pos:y_pos + height, x_pos:x_pos + width]
 
 
-def load_inner_circles_from_pickle(file_path):
+def load_inner_circles_from_pickle(file_path: str) -> list[dict[str, Any]]:
     with open(file_path, 'rb') as file_handle:
         return normalize_inner_circles(pickle.load(file_handle))

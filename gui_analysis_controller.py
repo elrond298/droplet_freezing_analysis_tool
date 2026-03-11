@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 import datetime
 import os
 import traceback
+from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QThread
 from PyQt6.QtWidgets import QFileDialog
@@ -18,8 +21,11 @@ from gui_services import (
 )
 from gui_workers import BrightnessWorker
 
+if TYPE_CHECKING:
+    from gui import InteractivePlot
 
-def save_freezing_events_data(window):
+
+def save_freezing_events_data(window: InteractivePlot) -> None:
     default_filename = f"freezing_temperatures_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
     default_filepath = os.path.join(".", default_filename)
 
@@ -35,7 +41,7 @@ def save_freezing_events_data(window):
         )
 
 
-def load_freezing_events_data(window):
+def load_freezing_events_data(window: InteractivePlot) -> None:
     file_path, _ = QFileDialog.getOpenFileName(window, "Load Freezing Temperatures", ".", "Text Files (*.txt)")
     if file_path:
         try:
@@ -71,7 +77,7 @@ def load_freezing_events_data(window):
         window.append_log_message("No file selected", window.LOG_TAB_ANALYZE, window.LOG_LEVEL_WARNING)
 
 
-def load_analysis_inner_circle_locations(window):
+def load_analysis_inner_circle_locations(window: InteractivePlot) -> bool:
     try:
         if not window.validate_file_path(window.tube_location_file, "Tube locations file", window.LOG_TAB_ANALYZE):
             return False
@@ -92,7 +98,7 @@ def load_analysis_inner_circle_locations(window):
         return False
 
 
-def start_brightness_series_analysis(window):
+def start_brightness_series_analysis(window: InteractivePlot) -> None:
     if not window.validate_analysis_inputs():
         return
 
@@ -121,7 +127,7 @@ def start_brightness_series_analysis(window):
     )
 
 
-def apply_analysis_results(window, temperature_recordings, brightness_timeseries):
+def apply_analysis_results(window: InteractivePlot, temperature_recordings: Any, brightness_timeseries: Any) -> None:
     window.temperature_recordings = temperature_recordings
     window.brightness_timeseries = brightness_timeseries
     window.analysis_progress_bar.setValue(100)
@@ -143,7 +149,7 @@ def apply_analysis_results(window, temperature_recordings, brightness_timeseries
     enable_analysis_review_controls(window)
 
 
-def enable_analysis_review_controls(window):
+def enable_analysis_review_controls(window: InteractivePlot) -> None:
     window.next_button.setEnabled(True)
     window.prev_button.setEnabled(True)
     window.discard_button.setEnabled(True)
@@ -152,7 +158,7 @@ def enable_analysis_review_controls(window):
     window.load_button_freezing_temperatures.setEnabled(True)
 
 
-def discard_current_tube_freezing_point(window):
+def discard_current_tube_freezing_point(window: InteractivePlot) -> None:
     if not hasattr(window, 'current_tube_brightness') or not hasattr(window, 'current_tube_timestamps'):
         window.append_log_message(
             "No tube data is loaded. Run the analysis before discarding a tube.",
@@ -165,7 +171,7 @@ def discard_current_tube_freezing_point(window):
     _render_freezing_point(window, freezing_data, persist=True)
 
 
-def refresh_current_tube_brightness_plot(window):
+def refresh_current_tube_brightness_plot(window: InteractivePlot) -> None:
     try:
         if not hasattr(window, 'brightness_timeseries') or not window.brightness_timeseries:
             window.append_log_message(
@@ -228,7 +234,7 @@ def refresh_current_tube_brightness_plot(window):
         window.canvas2.draw()
 
 
-def refresh_current_tube_freezing_marker(window, xmin=None, xmax=None):
+def refresh_current_tube_freezing_marker(window: InteractivePlot, xmin: float | None = None, xmax: float | None = None) -> None:
     if xmin is None and xmax is None:
         freezing_data = resolve_existing_freezing_point(
             window.freezing_temperatures,
@@ -269,7 +275,7 @@ def refresh_current_tube_freezing_marker(window, xmin=None, xmax=None):
     _render_freezing_point(window, freezing_data, persist=xmin is not None or xmax is not None)
 
 
-def _render_freezing_point(window, freezing_data, persist):
+def _render_freezing_point(window: InteractivePlot, freezing_data: dict[str, Any], persist: bool) -> None:
     freezing_temp = freezing_data['temperature']
     freezing_timestamp = freezing_data['timestamp']
     freezing_brightness = freezing_data['brightness']

@@ -1,9 +1,16 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import cv2
 
 from gui_services import crop_rotated_image, rotate_image
 
+if TYPE_CHECKING:
+    from gui import InteractivePlot
 
-def load_selected_image_into_preparation_view(window):
+
+def load_selected_image_into_preparation_view(window: InteractivePlot) -> None:
     loaded_image = window.load_image_from_path(window.sample_image_path, "Sample image", window.LOG_TAB_PREPARE)
     if loaded_image is None:
         return
@@ -21,7 +28,7 @@ def load_selected_image_into_preparation_view(window):
     window.canvas_crop.draw()
 
 
-def apply_preparation_image_rotation(window):
+def apply_preparation_image_rotation(window: InteractivePlot) -> None:
     try:
         if window.original_image is None:
             window.append_log_message(
@@ -51,7 +58,7 @@ def apply_preparation_image_rotation(window):
         window.append_log_message(f"Error during rotation: {str(error)}", window.LOG_TAB_PREPARE, window.LOG_LEVEL_ERROR)
 
 
-def restore_original_preparation_image(window):
+def restore_original_preparation_image(window: InteractivePlot) -> None:
     if window.original_image is not None:
         window.rotated_image = window.original_image.copy()
         window.processed_image = None
@@ -71,7 +78,7 @@ def restore_original_preparation_image(window):
         window.reset_tube_detection_view()
 
 
-def apply_selected_crop_to_tube_detection(window):
+def apply_selected_crop_to_tube_detection(window: InteractivePlot) -> None:
     try:
         if window.rotated_image is None:
             window.append_log_message(

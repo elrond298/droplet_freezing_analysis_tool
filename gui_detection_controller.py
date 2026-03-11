@@ -1,14 +1,20 @@
+from __future__ import annotations
+
 import datetime
 import os
 import traceback
+from typing import TYPE_CHECKING, Any
 
 import cv2
 from PyQt6.QtWidgets import QFileDialog
 
 from gui_services import dump_inner_circles, render_manual_detection_overlay, render_tube_detection_overlay, run_tube_detection
 
+if TYPE_CHECKING:
+    from gui import InteractivePlot
 
-def reset_tube_detection_view(window):
+
+def reset_tube_detection_view(window: InteractivePlot) -> None:
     if hasattr(window, 'update_timer'):
         window.update_timer.stop()
 
@@ -26,7 +32,7 @@ def reset_tube_detection_view(window):
     )
 
 
-def run_tube_detection_and_render_plot(window):
+def run_tube_detection_and_render_plot(window: InteractivePlot) -> None:
     window.ax.clear()
     try:
         min_area = window.min_area_slider.value()
@@ -79,7 +85,7 @@ def run_tube_detection_and_render_plot(window):
         window.canvas.draw()
 
 
-def handle_tube_detection_plot_click(window, event):
+def handle_tube_detection_plot_click(window: InteractivePlot, event: Any) -> None:
     if event.inaxes != window.ax:
         return
 
@@ -112,7 +118,7 @@ def handle_tube_detection_plot_click(window, event):
         redraw_manual_tube_detection_plot(window)
 
 
-def redraw_manual_tube_detection_plot(window):
+def redraw_manual_tube_detection_plot(window: InteractivePlot) -> None:
     window.ax.clear()
     img_with_tubes = render_manual_detection_overlay(window.img, window.all_tubes, window.inner_circles)
 
@@ -130,7 +136,7 @@ def redraw_manual_tube_detection_plot(window):
     )
 
 
-def save_detected_inner_circles(window):
+def save_detected_inner_circles(window: InteractivePlot) -> None:
     default_filename = f"inner_circles_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pkl"
     default_filepath = os.path.join(".", default_filename)
 

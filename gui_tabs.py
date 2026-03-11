@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from PyQt6.QtWidgets import (
     QFormLayout,
     QGroupBox,
@@ -17,16 +21,19 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 
+if TYPE_CHECKING:
+    from gui import InteractivePlot
+
 
 class FullMessageNavigationToolbar(NavigationToolbar):
-    def __init__(self, canvas, parent):
+    def __init__(self, canvas: FigureCanvas, parent: QWidget) -> None:
         super().__init__(canvas, parent)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         if hasattr(self, 'locLabel'):
             self.locLabel.hide()
 
-    def set_message(self, message):
+    def set_message(self, message: str) -> None:
         full_message = message or ""
         if hasattr(self, 'locLabel'):
             self.locLabel.clear()
@@ -39,7 +46,7 @@ class FullMessageNavigationToolbar(NavigationToolbar):
                 window.statusBar().clearMessage()
 
 
-def create_log_group(window, title, attribute_name):
+def create_log_group(window: InteractivePlot, title: str, attribute_name: str) -> QGroupBox:
     log_group = QGroupBox(title)
     log_layout = QVBoxLayout(log_group)
     log_text_edit = QTextEdit()
@@ -49,7 +56,7 @@ def create_log_group(window, title, attribute_name):
     log_layout.addWidget(log_text_edit)
     return log_group
 
-def build_tube_locating_tab(window):
+def build_tube_locating_tab(window: InteractivePlot) -> None:
     tab1_layout = QHBoxLayout(window.tab1)
     tab1_layout.setContentsMargins(12, 12, 12, 12)
     tab1_layout.setSpacing(12)
@@ -170,7 +177,7 @@ def build_tube_locating_tab(window):
     tab1_layout.addWidget(right_scroll_area, 3)
 
 
-def build_freezing_detection_tab(window):
+def build_freezing_detection_tab(window: InteractivePlot) -> None:
     tab2_layout = QHBoxLayout(window.tab2)
     tab2_layout.setContentsMargins(12, 12, 12, 12)
     tab2_layout.setSpacing(12)
@@ -276,7 +283,7 @@ def build_freezing_detection_tab(window):
     window.load_button_freezing_temperatures.setEnabled(False)
 
 
-def build_image_cropping_tab(window):
+def build_image_cropping_tab(window: InteractivePlot) -> None:
     tab3_layout = QHBoxLayout(window.tab3)
     tab3_layout.setContentsMargins(12, 12, 12, 12)
     tab3_layout.setSpacing(12)
@@ -369,7 +376,7 @@ def build_image_cropping_tab(window):
     tab3_layout.addWidget(control_scroll_area, 3)
 
 
-def build_settings_tab(window):
+def build_settings_tab(window: InteractivePlot) -> None:
     tab4_layout = QHBoxLayout(window.tab4)
     tab4_layout.setContentsMargins(12, 12, 12, 12)
     tab4_layout.setSpacing(12)

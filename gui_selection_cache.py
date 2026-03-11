@@ -1,8 +1,14 @@
+from __future__ import annotations
+
 import json
 import os
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gui import InteractivePlot
 
 
-def refresh_image_path_labels(window):
+def refresh_image_path_labels(window: InteractivePlot) -> None:
     if hasattr(window, 'sample_image_path_label'):
         window.sample_image_path_label.setText(
             window.format_highlighted_selected_path("Current image", window.sample_image_path)
@@ -13,7 +19,7 @@ def refresh_image_path_labels(window):
         )
 
 
-def refresh_analysis_input_labels(window):
+def refresh_analysis_input_labels(window: InteractivePlot) -> None:
     if hasattr(window, 'image_directory_label'):
         window.image_directory_label.setText(
             window.format_highlighted_selected_path("Selected image folder", window.image_directory)
@@ -28,7 +34,7 @@ def refresh_analysis_input_labels(window):
         )
 
 
-def load_selection_cache(window):
+def load_selection_cache(window: InteractivePlot) -> dict[str, Any]:
     if not os.path.isfile(window.selection_cache_path):
         return {}
 
@@ -41,7 +47,7 @@ def load_selection_cache(window):
     return cached_data if isinstance(cached_data, dict) else {}
 
 
-def save_selection_cache(window):
+def save_selection_cache(window: InteractivePlot) -> None:
     existing_cached_data = load_selection_cache(window)
 
     sample_image_path = window.sample_image_path
@@ -84,7 +90,7 @@ def save_selection_cache(window):
                 pass
 
 
-def restore_cached_selections(window):
+def restore_cached_selections(window: InteractivePlot) -> None:
     cached_data = load_selection_cache(window)
 
     detection_default_tubes_size = cached_data.get('detection_default_tubes_size')
