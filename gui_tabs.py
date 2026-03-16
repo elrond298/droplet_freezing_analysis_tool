@@ -51,8 +51,19 @@ class FullMessageNavigationToolbar(NavigationToolbar):
                 window.statusBar().clearMessage()
 
 
-class BoundedPopupComboBox(QComboBox):
+class NonScrollingComboBox(QComboBox):
+    def wheelEvent(self, event):
+        event.ignore()
+
+class NonScrollingSlider(QSlider):
+    def wheelEvent(self, event):
+        event.ignore()
+
+class BoundedPopupComboBox(NonScrollingComboBox):
     popup_margin = 12
+
+    def wheelEvent(self, event):
+        event.ignore()
 
     def showPopup(self) -> None:
         super().showPopup()
@@ -208,7 +219,7 @@ def build_tube_locating_tab(window: InteractivePlot) -> None:
     min_area_group = QWidget()
     min_area_layout = QVBoxLayout(min_area_group)
     min_area_layout.setContentsMargins(0, 0, 0, 0)
-    window.min_area_slider = QSlider(Qt.Orientation.Horizontal)
+    window.min_area_slider = NonScrollingSlider(Qt.Orientation.Horizontal)
     window.min_area_slider.setMinimum(10)
     window.min_area_slider.setMaximum(1500)
     window.min_area_slider.setSingleStep(10)
@@ -222,7 +233,7 @@ def build_tube_locating_tab(window: InteractivePlot) -> None:
     circularity_group = QWidget()
     circularity_layout = QVBoxLayout(circularity_group)
     circularity_layout.setContentsMargins(0, 0, 0, 0)
-    window.circularity_slider = QSlider(Qt.Orientation.Horizontal)
+    window.circularity_slider = NonScrollingSlider(Qt.Orientation.Horizontal)
     window.circularity_slider.setMinimum(10)
     window.circularity_slider.setMaximum(100)
     window.circularity_slider.setSingleStep(5)
@@ -465,7 +476,7 @@ def build_inp_tab(window: InteractivePlot) -> None:
     sources_layout.addWidget(window.add_inp_file_button)
 
     preset_row = QVBoxLayout()
-    window.inp_preset_combo = QComboBox()
+    window.inp_preset_combo = NonScrollingComboBox()
     examples_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'examples')
     window.inp_preset_combo.addItem(
         "Water control example",

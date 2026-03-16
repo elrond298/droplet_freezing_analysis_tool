@@ -84,6 +84,22 @@ if TYPE_CHECKING:
 
     from gui_tabs import BoundedPopupComboBox, FullMessageNavigationToolbar
         
+class NonScrollingSpinBox(QSpinBox):
+    def wheelEvent(self, event):
+        event.ignore()
+
+class NonScrollingDoubleSpinBox(QDoubleSpinBox):
+    def wheelEvent(self, event):
+        event.ignore()
+
+class NonScrollingComboBox(QComboBox):
+    def wheelEvent(self, event):
+        event.ignore()
+
+class NonScrollingSlider(QSlider):
+    def wheelEvent(self, event):
+        event.ignore()
+
 class InteractivePlot(QMainWindow):
     """
     A main window class for the Droplet Freezing Assay Offline Analysis application.
@@ -777,7 +793,7 @@ class InteractivePlot(QMainWindow):
         label3 = QLabel("Default minimum area:")
         label3.setWordWrap(True)
         layout.addWidget(label3)
-        self.settings_min_area_spinbox = QSpinBox()
+        self.settings_min_area_spinbox = NonScrollingSpinBox()
         self.settings_min_area_spinbox.setRange(10, 1500)
         self.settings_min_area_spinbox.setSingleStep(10)
         self.settings_min_area_spinbox.setValue(self.detection_default_min_area)
@@ -787,7 +803,7 @@ class InteractivePlot(QMainWindow):
         label4 = QLabel("Default circularity threshold:")
         label4.setWordWrap(True)
         layout.addWidget(label4)
-        self.settings_circularity_spinbox = QSpinBox()
+        self.settings_circularity_spinbox = NonScrollingSpinBox()
         self.settings_circularity_spinbox.setRange(10, 100)
         self.settings_circularity_spinbox.setSingleStep(5)
         self.settings_circularity_spinbox.setSuffix(" %")
@@ -806,7 +822,7 @@ class InteractivePlot(QMainWindow):
         label_vol = QLabel("Default droplet volume:")
         label_vol.setWordWrap(True)
         layout.addWidget(label_vol)
-        self.settings_inp_volume_spinbox = QDoubleSpinBox()
+        self.settings_inp_volume_spinbox = NonScrollingDoubleSpinBox()
         self.settings_inp_volume_spinbox.setRange(0.01, 1000000.0)
         self.settings_inp_volume_spinbox.setDecimals(3)
         self.settings_inp_volume_spinbox.setSingleStep(1.0)
@@ -818,7 +834,7 @@ class InteractivePlot(QMainWindow):
         label_dil = QLabel("Default dilution factor:")
         label_dil.setWordWrap(True)
         layout.addWidget(label_dil)
-        self.settings_inp_dilution_spinbox = QDoubleSpinBox()
+        self.settings_inp_dilution_spinbox = NonScrollingDoubleSpinBox()
         self.settings_inp_dilution_spinbox.setRange(0.000001, 1000000.0)
         self.settings_inp_dilution_spinbox.setDecimals(6)
         self.settings_inp_dilution_spinbox.setSingleStep(0.1)
@@ -963,7 +979,7 @@ class InteractivePlot(QMainWindow):
         label_input.setPlaceholderText("Optional dataset label")
         form_layout.addRow("Dataset label:", label_input)
 
-        volume_spinbox = QDoubleSpinBox()
+        volume_spinbox = NonScrollingDoubleSpinBox()
         volume_spinbox.setRange(0.01, 1000000.0)
         volume_spinbox.setDecimals(3)
         volume_spinbox.setSingleStep(1.0)
@@ -971,7 +987,7 @@ class InteractivePlot(QMainWindow):
         volume_spinbox.setValue(self.inp_default_droplet_volume_ul if initial_droplet_volume_ul is None else initial_droplet_volume_ul)
         form_layout.addRow("Droplet volume:", volume_spinbox)
 
-        dilution_spinbox = QDoubleSpinBox()
+        dilution_spinbox = NonScrollingDoubleSpinBox()
         dilution_spinbox.setRange(0.000001, 1000000.0)
         dilution_spinbox.setDecimals(6)
         dilution_spinbox.setSingleStep(0.1)
@@ -999,7 +1015,7 @@ class InteractivePlot(QMainWindow):
         label = QLabel("Font size:")
         layout.addWidget(label)
 
-        self.font_size_spinbox = QSpinBox()
+        self.font_size_spinbox = NonScrollingSpinBox()
         self.font_size_spinbox.setRange(self.MIN_FONT_SIZE, self.MAX_FONT_SIZE)
         self.font_size_spinbox.setValue(self.ui_font_size)
         self.font_size_spinbox.setSuffix(" pt")
