@@ -169,30 +169,39 @@ def build_tube_locating_tab(window: InteractivePlot) -> None:
     window.refresh_button.clicked.connect(window.run_tube_detection_and_render_plot)
     detection_layout.addWidget(window.refresh_button)
 
-    form_layout = QFormLayout()
+    form_layout = QVBoxLayout()
+    
+    tubes_size_label = QLabel("Tubes array size (rows, columns):")
+    tubes_size_label.setWordWrap(True)
+    form_layout.addWidget(tubes_size_label)
+    
     window.tubes_size_input = QLineEdit()
     window.tubes_size_input.setPlaceholderText("Example: 10, 8 (rows, columns)")
     window.tubes_size_input.setToolTip("Enter the tube grid as rows, columns. Example: 10, 8 means 10 rows and 8 columns.")
     window.tubes_size_input.setText('10, 8')
     window.tubes_size_input.textChanged.connect(window.update_tubes_size)
-    form_layout.addRow("Tubes array size (rows, columns):", window.tubes_size_input)
+    form_layout.addWidget(window.tubes_size_input)
 
     tubes_size_hint = QLabel("Example: 10, 8 means 10 rows and 8 columns.")
     tubes_size_hint.setObjectName("hintLabel")
     tubes_size_hint.setWordWrap(True)
-    form_layout.addRow("", tubes_size_hint)
+    form_layout.addWidget(tubes_size_hint)
 
+    rotation_label = QLabel("Grid rotation:")
+    rotation_label.setWordWrap(True)
+    form_layout.addWidget(rotation_label)
+    
     window.rotation_input = QLineEdit()
     window.rotation_input.setPlaceholderText("auto or degrees, e.g. -1.5")
     window.rotation_input.setToolTip("Use 'auto' to estimate the tube-grid angle, or enter degrees manually. Positive values rotate counter-clockwise and negative values rotate clockwise.")
     window.rotation_input.setText('auto')
     window.rotation_input.textChanged.connect(window.schedule_update)
-    form_layout.addRow("Grid rotation:", window.rotation_input)
+    form_layout.addWidget(window.rotation_input)
 
     rotation_hint = QLabel("Use 'auto' to estimate the tube-grid angle. You can also enter degrees manually: positive values rotate counter-clockwise, negative values rotate clockwise.")
     rotation_hint.setObjectName("hintLabel")
     rotation_hint.setWordWrap(True)
-    form_layout.addRow("", rotation_hint)
+    form_layout.addWidget(rotation_hint)
 
     detection_layout.addLayout(form_layout)
 
@@ -279,11 +288,8 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
     ))
 
     input_group = QGroupBox("Analysis Inputs")
-    input_layout = QGridLayout(input_group)
-    input_layout.setHorizontalSpacing(12)
-    input_layout.setVerticalSpacing(10)
-    input_layout.setColumnStretch(0, 1)
-    input_layout.setColumnStretch(1, 1)
+    input_layout = QVBoxLayout(input_group)
+    input_layout.setSpacing(10)
 
     image_dir_group, window.image_directory_label = window.create_selection_group(
         "Image Directory",
@@ -291,7 +297,7 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
         window.select_image_directory,
         QStyle.StandardPixmap.SP_DirOpenIcon,
     )
-    input_layout.addWidget(image_dir_group, 0, 0)
+    input_layout.addWidget(image_dir_group)
 
     temp_rec_group, window.temperature_recording_label = window.create_selection_group(
         "Temperature Recording",
@@ -299,7 +305,7 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
         window.select_temperature_recording,
         QStyle.StandardPixmap.SP_DialogOpenButton,
     )
-    input_layout.addWidget(temp_rec_group, 0, 1)
+    input_layout.addWidget(temp_rec_group)
 
     tube_loc_group, window.tube_locations_label = window.create_selection_group(
         "Tube Locations",
@@ -307,7 +313,7 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
         window.select_tube_locations,
         QStyle.StandardPixmap.SP_DialogOpenButton,
     )
-    input_layout.addWidget(tube_loc_group, 1, 0)
+    input_layout.addWidget(tube_loc_group)
 
     cutoff_group = QGroupBox("Temperature Cutoff Timestamp")
     cutoff_layout = QVBoxLayout(cutoff_group)
@@ -322,12 +328,12 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
     cutoff_hint_label.setWordWrap(True)
     cutoff_layout.addWidget(cutoff_hint_label)
 
-    input_layout.addWidget(cutoff_group, 1, 1)
+    input_layout.addWidget(cutoff_group)
 
     window.start_load_timeseries_button = QPushButton("Load Brightness Timeseries")
     window.set_standard_button_icon(window.start_load_timeseries_button, QStyle.StandardPixmap.SP_MediaPlay)
     window.start_load_timeseries_button.clicked.connect(window.start_brightness_series_analysis)
-    input_layout.addWidget(window.start_load_timeseries_button, 2, 0, 1, 2)
+    input_layout.addWidget(window.start_load_timeseries_button)
 
     window.analysis_progress_bar = QProgressBar()
     window.analysis_progress_bar.setObjectName("analysisProgressBar")
@@ -335,31 +341,41 @@ def build_freezing_detection_tab(window: InteractivePlot) -> None:
     window.analysis_progress_bar.setValue(0)
     window.analysis_progress_bar.setProperty("completed", False)
     window.analysis_progress_bar.setFormat("Waiting for the image folder, temperature file, tube locations to start ...")
-    input_layout.addWidget(window.analysis_progress_bar, 3, 0, 1, 2)
+    input_layout.addWidget(window.analysis_progress_bar)
 
     right_layout.addWidget(input_group)
 
     review_group = QGroupBox("Tube Review")
     review_layout = QVBoxLayout(review_group)
 
-    selector_form = QFormLayout()
+    selector_form = QVBoxLayout()
+    
+    sort_label = QLabel("Sort tube list by:")
+    sort_label.setWordWrap(True)
+    selector_form.addWidget(sort_label)
+    
     window.tube_sort_combo = BoundedPopupComboBox()
     window.tube_sort_combo.addItem("Tube index", "index")
     window.tube_sort_combo.addItem("Freezing temperature", "temperature")
     window.tube_sort_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
     window.tube_sort_combo.setMaxVisibleItems(12)
     window.tube_sort_combo.currentIndexChanged.connect(window.handle_analysis_tube_sort_changed)
-    selector_form.addRow("Sort tube list by:", window.tube_sort_combo)
+    selector_form.addWidget(window.tube_sort_combo)
 
+    tube_label = QLabel("Select tube:")
+    tube_label.setWordWrap(True)
+    selector_form.addWidget(tube_label)
+    
     window.tube_selector_combo = BoundedPopupComboBox()
     window.tube_selector_combo.setPlaceholderText("Choose a tube to review")
     window.tube_selector_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
     window.tube_selector_combo.setMaxVisibleItems(12)
     window.tube_selector_combo.currentIndexChanged.connect(window.go_to_tube)
-    selector_form.addRow("Select tube:", window.tube_selector_combo)
+    selector_form.addWidget(window.tube_selector_combo)
+    
     review_layout.addLayout(selector_form)
 
-    button_layout = QHBoxLayout()
+    button_layout = QVBoxLayout()
     window.prev_button = QPushButton("Show Previous Tube")
     window.next_button = QPushButton("Show Next Tube")
     window.discard_button = QPushButton("Mark Current Tube As Not Available")
@@ -448,7 +464,7 @@ def build_inp_tab(window: InteractivePlot) -> None:
     window.add_inp_file_button.clicked.connect(window.prompt_and_add_inp_dataset_from_files)
     sources_layout.addWidget(window.add_inp_file_button)
 
-    preset_row = QHBoxLayout()
+    preset_row = QVBoxLayout()
     window.inp_preset_combo = QComboBox()
     examples_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'examples')
     window.inp_preset_combo.addItem(
@@ -480,7 +496,7 @@ def build_inp_tab(window: InteractivePlot) -> None:
     window.inp_dataset_list.setMinimumHeight(180)
     datasets_layout.addWidget(window.inp_dataset_list)
 
-    dataset_buttons = QHBoxLayout()
+    dataset_buttons = QVBoxLayout()
     window.remove_inp_dataset_button = QPushButton("Remove Selected Dataset")
     window.set_standard_button_icon(window.remove_inp_dataset_button, QStyle.StandardPixmap.SP_TrashIcon)
     window.remove_inp_dataset_button.clicked.connect(window.remove_selected_inp_dataset)
@@ -555,7 +571,7 @@ def build_image_cropping_tab(window: InteractivePlot) -> None:
 
     rotation_group = QGroupBox("Step 2: Adjust Rotation")
     rotation_group_layout = QVBoxLayout(rotation_group)
-    rotation_layout = QHBoxLayout()
+    rotation_layout = QVBoxLayout()
     window.rotation_input_crop = QLineEdit()
     window.rotation_input_crop.setPlaceholderText("Example: 2.5 or -2.5 degrees")
     window.rotation_input_crop.setToolTip("Positive values rotate counter-clockwise. Negative values rotate clockwise.")

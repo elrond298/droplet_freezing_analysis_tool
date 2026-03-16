@@ -115,8 +115,8 @@ class InteractivePlot(QMainWindow):
     }
     SELECTION_CACHE_FILENAME = ".gui_selection_cache.json"
     DEFAULT_FONT_SIZE = 10
-    MIN_FONT_SIZE = 8
-    MAX_FONT_SIZE = 24
+    MIN_FONT_SIZE = 6
+    MAX_FONT_SIZE = 32
 
     # These UI attributes are attached during tab construction in gui_tabs.py.
     # Declaring them here gives the editor a stable definition site for navigation and typing.
@@ -754,43 +754,58 @@ class InteractivePlot(QMainWindow):
 
     def create_detection_defaults_group(self) -> QGroupBox:
         detection_group = QGroupBox("Detection Defaults")
-        layout = QFormLayout(detection_group)
+        layout = QVBoxLayout(detection_group)
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(10)
 
+        label1 = QLabel("Default tube grid (rows, columns):")
+        label1.setWordWrap(True)
+        layout.addWidget(label1)
         self.settings_tubes_size_input = QLineEdit(self.format_tubes_size(self.detection_default_tubes_size))
         self.settings_tubes_size_input.setPlaceholderText("Example: 10, 8")
         self.settings_tubes_size_input.editingFinished.connect(self.update_detection_default_tubes_size)
-        layout.addRow("Default tube grid (rows, columns):", self.settings_tubes_size_input)
+        layout.addWidget(self.settings_tubes_size_input)
 
+        label2 = QLabel("Default grid rotation:")
+        label2.setWordWrap(True)
+        layout.addWidget(label2)
         self.settings_rotation_input = QLineEdit(self.detection_default_rotation)
         self.settings_rotation_input.setPlaceholderText("auto or degrees, e.g. -1.5")
         self.settings_rotation_input.editingFinished.connect(self.update_detection_default_rotation)
-        layout.addRow("Default grid rotation:", self.settings_rotation_input)
+        layout.addWidget(self.settings_rotation_input)
 
+        label3 = QLabel("Default minimum area:")
+        label3.setWordWrap(True)
+        layout.addWidget(label3)
         self.settings_min_area_spinbox = QSpinBox()
         self.settings_min_area_spinbox.setRange(10, 1500)
         self.settings_min_area_spinbox.setSingleStep(10)
         self.settings_min_area_spinbox.setValue(self.detection_default_min_area)
         self.settings_min_area_spinbox.valueChanged.connect(self.update_detection_default_min_area)
-        layout.addRow("Default minimum area:", self.settings_min_area_spinbox)
+        layout.addWidget(self.settings_min_area_spinbox)
 
+        label4 = QLabel("Default circularity threshold:")
+        label4.setWordWrap(True)
+        layout.addWidget(label4)
         self.settings_circularity_spinbox = QSpinBox()
         self.settings_circularity_spinbox.setRange(10, 100)
         self.settings_circularity_spinbox.setSingleStep(5)
         self.settings_circularity_spinbox.setSuffix(" %")
         self.settings_circularity_spinbox.setValue(self.detection_default_circularity)
         self.settings_circularity_spinbox.valueChanged.connect(self.update_detection_default_circularity)
-        layout.addRow("Default circularity threshold:", self.settings_circularity_spinbox)
+        layout.addWidget(self.settings_circularity_spinbox)
 
         return detection_group
 
     def create_inp_defaults_group(self) -> QGroupBox:
         inp_group = QGroupBox("INP Defaults")
-        layout = QFormLayout(inp_group)
+        layout = QVBoxLayout(inp_group)
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(10)
 
+        label_vol = QLabel("Default droplet volume:")
+        label_vol.setWordWrap(True)
+        layout.addWidget(label_vol)
         self.settings_inp_volume_spinbox = QDoubleSpinBox()
         self.settings_inp_volume_spinbox.setRange(0.01, 1000000.0)
         self.settings_inp_volume_spinbox.setDecimals(3)
@@ -798,15 +813,18 @@ class InteractivePlot(QMainWindow):
         self.settings_inp_volume_spinbox.setSuffix(" uL")
         self.settings_inp_volume_spinbox.setValue(self.inp_default_droplet_volume_ul)
         self.settings_inp_volume_spinbox.valueChanged.connect(self.update_inp_default_droplet_volume_ul)
-        layout.addRow("Default droplet volume:", self.settings_inp_volume_spinbox)
+        layout.addWidget(self.settings_inp_volume_spinbox)
 
+        label_dil = QLabel("Default dilution factor:")
+        label_dil.setWordWrap(True)
+        layout.addWidget(label_dil)
         self.settings_inp_dilution_spinbox = QDoubleSpinBox()
         self.settings_inp_dilution_spinbox.setRange(0.000001, 1000000.0)
         self.settings_inp_dilution_spinbox.setDecimals(6)
         self.settings_inp_dilution_spinbox.setSingleStep(0.1)
         self.settings_inp_dilution_spinbox.setValue(self.inp_default_dilution_factor)
         self.settings_inp_dilution_spinbox.valueChanged.connect(self.update_inp_default_dilution_factor)
-        layout.addRow("Default dilution factor:", self.settings_inp_dilution_spinbox)
+        layout.addWidget(self.settings_inp_dilution_spinbox)
 
         return inp_group
 
