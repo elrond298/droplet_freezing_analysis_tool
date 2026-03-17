@@ -163,6 +163,7 @@ def build_inp_curve(
     freezing_values: list[float],
     droplet_volume_ul: float,
     dilution_factor: float,
+    total_droplet_number: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     if droplet_volume_ul <= 0:
         raise ValueError("Droplet volume must be greater than zero.")
@@ -172,7 +173,11 @@ def build_inp_curve(
         raise ValueError("At least one freezing temperature is required.")
 
     temperatures = np.asarray(freezing_values, dtype=float)
-    total_droplets = temperatures.size
+    if total_droplet_number is not None:
+        total_droplets = total_droplet_number
+    else:
+        total_droplets = temperatures.size
+
     droplet_volume_ml = droplet_volume_ul / 1000.0
     unique_temperatures = np.array(sorted(set(temperatures.tolist()), reverse=True), dtype=float)
     counts = np.array([int(np.sum(temperatures == value)) for value in unique_temperatures], dtype=int)

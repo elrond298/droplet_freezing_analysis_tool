@@ -28,6 +28,7 @@ def add_inp_dataset_from_files(
     droplet_volume_ul: float | None = None,
     dilution_factor: float | None = None,
     file_paths: list[str] | None = None,
+    total_droplet_number: int | None = None,
 ) -> None:
     if file_paths is None:
         file_paths, _ = QFileDialog.getOpenFileNames(
@@ -49,7 +50,7 @@ def add_inp_dataset_from_files(
 
     added_count = 0
     for file_path in file_paths:
-        temperatures = _load_freezing_temperatures_from_path(window, file_path)
+        temperatures, total_points = _load_freezing_temperatures_from_path(window, file_path)
         if not temperatures:
             continue
 
@@ -61,6 +62,7 @@ def add_inp_dataset_from_files(
             droplet_volume_ul=droplet_volume_ul,
             dilution_factor=dilution_factor,
             source=file_path,
+            total_droplet_number=total_droplet_number if total_droplet_number is not None else total_points,
         )
         added_count += 1
 
@@ -80,6 +82,7 @@ def add_selected_inp_preset(
     label: str | None = None,
     droplet_volume_ul: float | None = None,
     dilution_factor: float | None = None,
+    total_droplet_number: int | None = None,
 ) -> None:
     preset_path = window.inp_preset_combo.currentData()
     if not isinstance(preset_path, str) or not os.path.isfile(preset_path):
@@ -92,7 +95,7 @@ def add_selected_inp_preset(
     if dilution_factor is None:
         dilution_factor = window.inp_default_dilution_factor
 
-    temperatures = _load_freezing_temperatures_from_path(window, preset_path, source_label="preset")
+    temperatures, total_points = _load_freezing_temperatures_from_path(window, preset_path, source_label="preset")
     if not temperatures:
         return
 
@@ -103,6 +106,7 @@ def add_selected_inp_preset(
         droplet_volume_ul=droplet_volume_ul,
         dilution_factor=dilution_factor,
         source=preset_path,
+        total_droplet_number=total_droplet_number if total_droplet_number is not None else total_points,
     )
     refresh_inp_plot(window)
     window.append_log_message(
@@ -118,6 +122,7 @@ def add_current_analysis_to_inp(
     droplet_volume_ul: float | None = None,
     dilution_factor: float | None = None,
     auto_export: bool = False,
+    total_droplet_number: int | None = None,
 ) -> None:
     temperatures = extract_valid_freezing_temperatures(window.freezing_temperatures)
     if not temperatures:
@@ -127,6 +132,8 @@ def add_current_analysis_to_inp(
             window.LOG_LEVEL_WARNING,
         )
         return
+
+    total_points = len(window.freezing_temperatures) if window.freezing_temperatures else 0
 
     if droplet_volume_ul is None or dilution_factor is None:
         custom_label = "" if label is None else label.strip()
@@ -152,6 +159,7 @@ def add_current_analysis_to_inp(
         droplet_volume_ul=droplet_volume_ul,
         dilution_factor=dilution_factor,
         source=source_label,
+        total_droplet_number=total_droplet_number if total_droplet_number is not None else total_points,
     )
     refresh_inp_plot(window)
     window.tab_widget.setCurrentIndex(3)
@@ -236,17 +244,19 @@ def _append_inp_dataset(
     droplet_volume_ul: float,
     dilution_factor: float,
     source: str,
+    total_droplet_number: int | None = None,
 ) -> None:
     curve_temperatures, inp_concentrations = build_inp_curve(
         freezing_values,
         droplet_volume_ul=droplet_volume_ul,
         dilution_factor=dilution_factor,
+        total_droplet_number=total_droplet_number,
     )
     unique_label = _make_unique_label(window, label)
     dataset = {
         'label': unique_label,
         'source': source,
-        'tube_count': len(freezing_values),
+        'tube_count': total_droplet_number if total_droplet_number is not None else len(freezing_values),
         'droplet_volume_ul': droplet_volume_ul,
         'dilution_factor': dilution_factor,
         'curve_temperatures': curve_temperatures.tolist(),
@@ -261,7 +271,7 @@ def _load_freezing_temperatures_from_path(
     window: InteractivePlot,
     file_path: str,
     source_label: str = "file",
-) -> list[float]:
+) -> tuple[list[float], int]:
     freezing_temperatures, errors = deserialize_freezing_temperatures(file_path)
     source_name = os.path.basename(file_path)
     for line, error in errors:
@@ -278,9 +288,9 @@ def _load_freezing_temperatures_from_path(
             window.LOG_TAB_INP,
             window.LOG_LEVEL_WARNING,
         )
-        return []
+        return [], 0
 
-    return temperatures
+    return temperatures, len(freezing_temperatures)
 
 
 def _make_unique_label(window: InteractivePlot, base_label: str) -> str:

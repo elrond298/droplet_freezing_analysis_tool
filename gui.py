@@ -968,7 +968,7 @@ class InteractivePlot(QMainWindow):
         label: str = "",
         initial_droplet_volume_ul: float | None = None,
         initial_dilution_factor: float | None = None,
-    ) -> tuple[str, float, float] | None:
+    ) -> tuple[str, float, float, int | None] | None:
         dialog = QDialog(self)
         dialog.setWindowTitle("Add Results To INP Plot")
 
@@ -994,6 +994,13 @@ class InteractivePlot(QMainWindow):
         dilution_spinbox.setValue(self.inp_default_dilution_factor if initial_dilution_factor is None else initial_dilution_factor)
         form_layout.addRow("Dilution factor:", dilution_spinbox)
 
+        total_number_spinbox = NonScrollingSpinBox()
+        total_number_spinbox.setRange(0, 1000000)
+        total_number_spinbox.setSpecialValueText("Auto (total data points)")
+        total_number_spinbox.setValue(0)
+        total_number_spinbox.setToolTip("Leave at Auto to use the total number of data points, including N/A.")
+        form_layout.addRow("Total droplet number:", total_number_spinbox)
+
         layout.addLayout(form_layout)
 
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -1004,7 +1011,8 @@ class InteractivePlot(QMainWindow):
         if dialog.exec() != int(QDialog.DialogCode.Accepted):
             return None
 
-        return label_input.text().strip(), float(volume_spinbox.value()), float(dilution_spinbox.value())
+        total_droplet_val = int(total_number_spinbox.value())
+        return label_input.text().strip(), float(volume_spinbox.value()), float(dilution_spinbox.value()), total_droplet_val if total_droplet_val > 0 else None
 
     def create_display_controls(self) -> QGroupBox:
         display_group = QGroupBox("Display")
@@ -1842,13 +1850,14 @@ class InteractivePlot(QMainWindow):
         if parameters is None:
             return
 
-        label, droplet_volume_ul, dilution_factor = parameters
+        label, droplet_volume_ul, dilution_factor, total_droplet_number = parameters
         inp_add_inp_dataset_from_files(
             self,
             label=label,
             droplet_volume_ul=droplet_volume_ul,
             dilution_factor=dilution_factor,
             file_paths=file_paths,
+            total_droplet_number=total_droplet_number,
         )
 
     def add_selected_inp_preset(self) -> None:
@@ -1859,12 +1868,13 @@ class InteractivePlot(QMainWindow):
         if parameters is None:
             return
 
-        label, droplet_volume_ul, dilution_factor = parameters
+        label, droplet_volume_ul, dilution_factor, total_droplet_number = parameters
         inp_add_selected_inp_preset(
             self,
             label=label,
             droplet_volume_ul=droplet_volume_ul,
             dilution_factor=dilution_factor,
+            total_droplet_number=total_droplet_number,
         )
 
     def add_current_analysis_to_inp(self) -> None:
@@ -1875,7 +1885,7 @@ class InteractivePlot(QMainWindow):
         if parameters is None:
             return
 
-        label, droplet_volume_ul, dilution_factor = parameters
+        label, droplet_volume_ul, dilution_factor, total_droplet_number = parameters
 
         inp_add_current_analysis_to_inp(
             self,
@@ -1883,6 +1893,7 @@ class InteractivePlot(QMainWindow):
             droplet_volume_ul=droplet_volume_ul,
             dilution_factor=dilution_factor,
             auto_export=True,
+            total_droplet_number=total_droplet_number,
         )
 
     def prompt_and_add_current_analysis_to_inp_from_tab4(self) -> None:
@@ -1890,7 +1901,7 @@ class InteractivePlot(QMainWindow):
         if parameters is None:
             return
 
-        label, droplet_volume_ul, dilution_factor = parameters
+        label, droplet_volume_ul, dilution_factor, total_droplet_number = parameters
 
         inp_add_current_analysis_to_inp(
             self,
@@ -1898,6 +1909,7 @@ class InteractivePlot(QMainWindow):
             droplet_volume_ul=droplet_volume_ul,
             dilution_factor=dilution_factor,
             auto_export=False,
+            total_droplet_number=total_droplet_number,
         )
 
     def remove_selected_inp_dataset(self) -> None:
